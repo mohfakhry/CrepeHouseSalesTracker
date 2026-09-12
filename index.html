@@ -1,0 +1,1553 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<script>
+window.onerror = function(msg, url, line, col, error) {
+  document.body.innerHTML = '<pre style="padding:16px;white-space:pre-wrap;direction:ltr;text-align:left;font-size:12px;color:red;background:#fff">JS ERROR:\n' + msg + '\nLine ' + line + ':' + col + '\n\n' + (error && error.stack || '') + '</pre>';
+};
+window.addEventListener('unhandledrejection', function(e) {
+  document.body.innerHTML = '<pre style="padding:16px;white-space:pre-wrap;direction:ltr;text-align:left;font-size:12px;color:red;background:#fff">UNHANDLED PROMISE REJECTION:\n' + (e.reason && (e.reason.stack || e.reason.message || e.reason) || e.reason) + '</pre>';
+});
+</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>زيارات المبيعات</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" crossorigin="anonymous">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js" crossorigin="anonymous"></script>
+<style>
+:root{--bg:var(--tg-theme-bg-color,#f5f5f5);--surface:var(--tg-theme-secondary-bg-color,#fff);--text:var(--tg-theme-text-color,#111);--muted:#2b2b2b;--button:var(--tg-theme-button-color,#2481cc);--buttonText:var(--tg-theme-button-text-color,#fff);--danger:#d9534f;--success:#239b56;--warning:#b7791f;--border:rgba(127,127,127,.16)}
+*{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text)}body{height:100vh;height:100dvh;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.app{width:min(100%,480px);height:100vh;height:100dvh;margin:auto;padding:max(14px,env(safe-area-inset-top)) clamp(14px,5vw,22px) max(22px,env(safe-area-inset-bottom));display:flex;flex-direction:column;overflow-y:auto}
+.header{padding:8px 2px 18px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;position:sticky;top:0;background:var(--bg);z-index:10}
+.headerText{min-width:0}
+.header-logo{grid-column:2;justify-self:center;height:clamp(51px,17vw,88px);width:auto;max-width:200px;object-fit:contain}
+.business-name{font-size:clamp(20px,5.2vw,25px);font-weight:850;line-height:1.25;letter-spacing:-.3px;overflow-wrap:anywhere}
+.user-name{margin-top:4px;color:var(--muted);font-size:14px;font-weight:600;line-height:1.4;overflow-wrap:anywhere}
+.main{flex:1;display:flex;flex-direction:column;justify-content:flex-start;padding-top:4px}
+.screen{background:var(--surface);border:1px solid var(--border);border-radius:22px;padding:clamp(22px,6.5vw,32px);text-align:center;box-shadow:0 10px 32px rgba(0,0,0,.06)}
+.icon{width:clamp(72px,20vw,88px);height:clamp(72px,20vw,88px);margin:0 auto 18px;border-radius:50%;display:grid;place-items:center;font-size:clamp(32px,9vw,40px);background:color-mix(in srgb,var(--button) 11%,transparent)}
+.icon.success{background:color-mix(in srgb,var(--success) 13%,transparent)!important}
+.icon.warningIcon{background:color-mix(in srgb,var(--warning) 14%,transparent)!important}
+h2{margin:0;font-size:clamp(21px,6.5vw,27px);font-weight:850}
+.message{min-height:22px;margin:8px 0 18px;color:var(--muted);line-height:1.7;font-size:14px}
+
+.card{background:color-mix(in srgb,var(--muted) 6%,var(--surface));border:1px solid var(--border);border-radius:16px;padding:2px 16px;margin:2px 0 18px;text-align:right}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 0;border-bottom:1px solid var(--border)}
+.row:last-child{border-bottom:0}
+.rowText{flex:1;min-width:0}
+.rowLabel{font-size:12px;color:var(--muted);margin-bottom:2px}
+.metaLtr{direction:ltr;text-align:right}
+.rowValue{font-size:14px;font-weight:800;line-height:1.4;overflow-wrap:anywhere}
+.rowIcon{flex:none;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-size:15px;background:color-mix(in srgb,var(--button) 12%,transparent)}
+.rowIcon.tintSuccess{background:color-mix(in srgb,var(--success) 14%,transparent)}
+
+.mapWrap{padding-bottom:14px}
+.mapBox{position:relative;width:100%;height:150px;border-radius:12px;overflow:hidden;background:color-mix(in srgb,var(--muted) 10%,transparent)}
+.branchMapBox{height:460px}
+.mapSkeleton{position:absolute;top:0;right:0;bottom:0;left:0;display:flex;align-items:center;justify-content:center;gap:6px;color:var(--muted);font-size:12px;text-align:center;padding:0 12px}
+.mapBox.hasMap .mapSkeleton{display:none}
+.leaflet-container{background:transparent;font-family:inherit}
+
+button{width:100%;min-height:58px;margin-top:12px;padding:14px 18px;border:0;border-radius:17px;font:inherit;font-size:clamp(16px,4.5vw,18px);font-weight:800;color:var(--buttonText);background:var(--button);cursor:pointer;touch-action:manipulation;display:flex;align-items:center;justify-content:center;gap:10px}
+button:disabled{opacity:.5}
+button.danger{background:var(--danger)}
+button.secondary,.back{color:var(--text);background:transparent;border:0;font-size:14px;min-height:42px}
+.cancelText{color:var(--danger);background:transparent;border:0;font-size:14px;min-height:42px;font-weight:700}
+.btnIcon{width:28px;height:28px;flex:none;border-radius:50%;display:grid;place-items:center;font-size:13px;background:rgba(255,255,255,.22)}
+
+.warning{margin-top:16px;padding:15px;border-radius:15px;background:color-mix(in srgb,var(--warning) 12%,transparent);text-align:right;line-height:1.75;font-size:14px}
+.warningTitle{font-weight:850}
+.supervisors{margin-top:12px}
+.supervisor-link{display:block;padding:10px 0;color:var(--button);font-weight:750;text-decoration:none;border-top:1px solid var(--border)}
+.supervisor-link:first-child{border-top:0}
+
+.activeBanner{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:2px;margin-bottom:18px;padding:14px;border-radius:14px;background:color-mix(in srgb,var(--success) 12%,transparent);text-align:right}
+.activeBanner .txt{font-size:13px;line-height:1.6}
+.activeBanner .title{font-weight:850;color:var(--success);font-size:13px;margin-bottom:2px}
+.activeBanner .icon2{font-size:20px;flex:none}
+
+.progress{display:none;height:3px;margin:15px 8px 0;overflow:hidden;border-radius:99px;background:color-mix(in srgb,var(--muted) 14%,transparent)}
+.progress.show{display:block}
+.progress:after{content:"";display:block;width:35%;height:100%;background:var(--button);animation:progress 1.05s ease-in-out infinite}
+@keyframes progress{from{transform:translateX(300%)}to{transform:translateX(-300%)}}
+.feedback{display:none;margin-top:14px;padding:13px;border-radius:15px;background:color-mix(in srgb,var(--danger) 12%,transparent);font-size:13px}
+.feedback.show{display:block}
+.steps{margin-top:16px;padding:14px 18px;border-radius:15px;background:color-mix(in srgb,var(--muted) 7%,transparent);color:var(--muted);text-align:right;line-height:2;font-size:13px}
+.footer{padding-top:16px;text-align:center;color:var(--muted);font-size:11px}
+
+.action-buttons{display:flex;flex-direction:column;gap:12px;margin-top:8px}
+.action{min-height:64px;margin-top:0}
+.action.checkin{background:var(--button)}
+.action.checkout{background:var(--danger)}
+.hidden{display:none!important}
+
+.header-actions{grid-column:3;justify-self:end;display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+.help-fab{flex:none;width:auto;min-height:0;margin:0;padding:9px 14px 9px 12px;border-radius:99px;display:flex;align-items:center;gap:7px;background:var(--surface);color:var(--button);border:1px solid var(--border);box-shadow:0 6px 18px rgba(0,0,0,.10);font-size:13px;font-weight:800;white-space:nowrap}
+.help-fab svg{width:18px;height:18px;flex:none}
+.help-fab:active{transform:scale(.95)}
+
+.help-overlay{position:fixed;top:0;right:0;bottom:0;left:0;z-index:150;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;overflow:hidden;padding:18px}
+.help-overlay.hidden{display:none}
+.help-inner{position:relative;width:min(100%,440px);max-height:min(82vh,640px);max-height:min(82dvh,640px);background:var(--surface);border-radius:22px;box-shadow:0 20px 60px rgba(0,0,0,.35);display:flex;flex-direction:column;padding:16px 16px 14px;overflow:hidden}
+.help-header{flex:none;display:flex;align-items:center;padding:2px 2px 14px 44px}
+.help-close{position:absolute;top:12px;left:12px;width:36px;height:36px;min-height:0;margin:0;flex:none;border-radius:50%;background:color-mix(in srgb,var(--muted) 10%,transparent);color:var(--text);font-size:26px;font-weight:800;line-height:1;padding:0}
+.help-title{font-size:clamp(19px,5vw,23px);font-weight:850}
+
+.tabs{flex:none;display:flex;gap:6px;margin-top:2px}
+.tab,.adminTabBtn{flex:1;min-height:0;margin:0;padding:12px 8px;border-radius:14px 14px 0 0;background:color-mix(in srgb,var(--muted) 9%,transparent);color:var(--muted);font-size:14px;font-weight:800;position:relative;top:1px;box-shadow:none}
+.tab.active,.adminTabBtn.active{background:var(--surface);color:var(--button);top:0;border:1px solid var(--border);border-bottom-color:var(--surface)}
+
+.tabContent{background:var(--surface);border:1px solid var(--border);border-radius:0 16px 16px 16px;padding:6px 16px 4px;margin-bottom:18px;flex:1;min-height:0;overflow-y:auto}
+
+.success-box{width:min(100%,380px);background:var(--surface);border-radius:22px;padding:clamp(28px,8vw,36px) clamp(22px,6.5vw,32px);text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.35);animation:successPop .25s ease}
+@keyframes successPop{from{transform:scale(.9);opacity:0}to{transform:scale(1);opacity:1}}
+.faqItem{border-bottom:1px solid var(--border);padding:13px 0}
+.faqItem:last-child{border-bottom:0}
+.faqItem summary{cursor:pointer;font-weight:800;font-size:14.5px;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.faqItem summary::-webkit-details-marker{display:none}
+.faqItem summary:after{content:"+";flex:none;font-size:18px;font-weight:700;color:var(--muted);transition:transform .15s}
+.faqItem[open] summary:after{content:"−"}
+.faqAnswer{margin-top:9px;color:var(--muted);font-size:13.5px;line-height:1.8}
+
+@media (max-height:700px){
+  .app{padding-top:max(8px,env(safe-area-inset-top));padding-bottom:max(12px,env(safe-area-inset-bottom))}
+  .header{padding:4px 2px 10px}
+  .header-logo{height:34px}
+  .main{padding-top:2px}
+  .screen{padding:16px 18px 18px;border-radius:18px}
+  .icon{width:52px;height:52px;margin:0 auto 10px;font-size:24px}
+  h2{font-size:19px}
+  .message{min-height:0;margin:6px 0 12px;line-height:1.5}
+  .card{margin:2px 0 12px}
+  .row{padding:8px 0}
+  .mapWrap{padding-bottom:8px}
+  .mapBox{height:96px}
+  .branchMapBox{height:340px}
+  button{min-height:46px;margin-top:8px;padding:10px 16px;font-size:15px}
+  .action{min-height:52px}
+  .back{min-height:34px;margin-top:4px}
+  .warning{margin-top:10px;padding:11px}
+  .steps{margin-top:10px;padding:10px 14px;line-height:1.7}
+  .footer{padding-top:8px}
+  .header-actions{gap:6px}
+  .help-fab{padding:7px 12px 7px 10px;font-size:12px}
+  .help-overlay{padding:10px}
+  .help-inner{padding:12px 12px 10px;max-height:90vh;max-height:90dvh}
+  .help-header{padding:2px 2px 10px 40px}
+  .help-close{width:32px;height:32px;top:8px;left:8px;font-size:22px}
+  .help-title{font-size:18px}
+  .tab{padding:9px 8px;font-size:13px}
+  .faqItem{padding:9px 0}
+}
+@media (max-height:600px){
+  .icon{width:44px;height:44px;font-size:20px;margin-bottom:8px}
+  .screen{padding:14px 16px}
+  .mapBox{height:78px}
+  .branchMapBox{height:240px}
+  h2{font-size:17px}
+  .message{font-size:13px}
+}
+
+input[type=text],select{width:100%;padding:11px 13px;border-radius:11px;border:1px solid var(--border);background:var(--bg);color:var(--text);font:inherit;font-size:14px}
+input[type=text]:focus,select:focus{outline:2px solid color-mix(in srgb,var(--button) 40%,transparent);outline-offset:1px}
+.selectError{border:1.5px solid var(--danger)!important;background:color-mix(in srgb,var(--danger) 8%,var(--bg))!important}
+.selectError:focus{outline-color:color-mix(in srgb,var(--danger) 45%,transparent)}
+.selectWrap{position:relative}
+.selectWrap select{appearance:none;-webkit-appearance:none;-moz-appearance:none;padding-left:38px}
+.selectWrap::after{content:"";position:absolute;left:17px;top:50%;width:9px;height:9px;border-right:3px solid var(--text);border-bottom:3px solid var(--text);transform:translateY(-65%) rotate(45deg);pointer-events:none}
+
+.adminPanel{display:flex;flex-direction:column}
+.lockBanner{display:flex;align-items:center;gap:8px;margin-bottom:14px;padding:12px 14px;border-radius:14px;background:color-mix(in srgb,var(--warning) 14%,transparent);color:var(--text);text-align:right;line-height:1.6;font-size:13px;font-weight:750}
+.adminPanel.panelLocked>*:not(.lockBanner){pointer-events:none;opacity:.55}
+.adminList{padding:2px 0}
+
+.empRow{background:color-mix(in srgb,var(--muted) 6%,var(--surface));border:1px solid var(--border);border-radius:14px;padding:11px 14px;margin:8px 0}
+.empRow.empRowError{border:1.5px solid var(--danger);background:color-mix(in srgb,var(--danger) 8%,var(--surface))}
+.empRowSummary{display:flex;align-items:center;gap:10px;cursor:pointer}
+.empStatusDot{width:9px;height:9px;border-radius:50%;background:var(--danger);flex:none}
+.empStatusDot.on{background:var(--success)}
+.dirtyDot{width:9px;height:9px;border-radius:50%;background:var(--warning);flex:none}
+.empRowDetails{margin-top:11px;padding-top:11px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px}
+.empRowDetails.hidden{display:none}
+
+.adminSaveBar{position:sticky;bottom:0;background:var(--surface);padding:10px 0 2px;margin-top:4px}
+.adminSaveBar button{margin-top:0}
+
+.jobTitleGroup{margin-top:1px}
+.jobTitleRadios{display:flex;flex-wrap:wrap;gap:5px 16px;margin-top:4px}
+.radioOption{display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--text);cursor:pointer}
+.radioOption input[type=radio]{width:auto;flex:none;margin:0;accent-color:var(--button)}
+
+.branchRowWrap{background:color-mix(in srgb,var(--muted) 6%,var(--surface));border:1px solid var(--border);border-radius:14px;padding:12px 14px;margin:8px 0;text-align:right}
+.branchRowSummary{display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer}
+.branchRowSummary:active{transform:scale(.98)}
+.branchRowDetails{margin-top:12px;padding-top:12px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:2px}
+.branchRowDetails.hidden{display:none}
+.branchRowActions{display:flex;gap:6px;flex:none}
+.branchName{font-size:17px}
+.rowIconBtn{width:auto;min-height:0;margin:0;padding:7px 10px;border-radius:10px;background:color-mix(in srgb,var(--muted) 12%,transparent);color:var(--text);font-size:14px;border:0}
+.rowIconBtn:active{transform:scale(.92)}
+
+.branchAddBtn{width:auto;align-self:flex-start;padding:0 22px;min-height:48px;margin:0 0 10px}
+
+.formLabel{display:block;font-size:12px;color:var(--muted);margin:11px 0 5px;font-weight:750}
+.formHint{min-height:16px;font-size:12px;margin-top:6px;color:var(--muted)}
+.formRow2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.branchMapWrap{margin-top:14px}
+.formInlineLabel{display:flex;align-items:center;gap:10px;margin-top:2px}
+.formInlineLabel .formLabel{margin:0;white-space:nowrap;flex:none}
+.formInlineLabel input{flex:1}
+input[readonly]{opacity:.75;cursor:default}
+
+.inputClearWrap{position:relative}
+.inputClearWrap input[type=text]{padding-inline-end:38px}
+.inputClearBtn{position:absolute;top:50%;inset-inline-end:6px;transform:translateY(-50%);width:26px;height:26px;min-height:0;margin:0;padding:0;border:0;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;line-height:1;color:var(--muted);background:color-mix(in srgb,var(--muted) 14%,transparent)}
+.inputClearBtn:active{transform:translateY(-50%) scale(.9)}
+.inputClearBtn.hidden{display:none}
+
+
+@media (max-height:700px){
+  .empRow{margin:6px 0;padding:9px 12px}
+  .branchRowWrap{margin:6px 0;padding:9px 12px}
+}
+
+.unsavedOverlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:200;padding:20px}
+.unsavedOverlay.hidden{display:none}
+.unsavedBox{background:var(--surface);border-radius:16px;padding:18px 18px 14px;max-width:340px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.25)}
+.unsavedMsg{color:var(--text);font-size:14px;line-height:1.7;text-align:right;margin-bottom:4px}
+#unsavedMsg{font-weight:800;font-size:clamp(18px,5vw,20px)}
+.unsavedActions{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+.unsavedActions button{margin-top:0}
+
+.dangerBox{border:2px solid var(--danger);box-shadow:0 12px 40px rgba(217,83,79,.28)}
+.dangerHead{display:flex;align-items:center;gap:9px;margin-bottom:6px}
+.dangerHeadIcon{font-size:23px;flex:none;line-height:1}
+.dangerTitle{font-weight:850;color:var(--danger);font-size:16px;line-height:1.4}
+</style>
+</head>
+
+<body>
+<main class="app">
+<header class="header">
+  <div class="headerText">
+    <div id="businessName" class="business-name">زيارات المبيعات</div>
+    <div id="welcome" class="user-name">جاري التحقق...</div>
+  </div>
+  <img class="header-logo" src="logo.png" alt="" onerror="this.style.display='none'">
+  <div class="header-actions">
+    <button id="adminManageFab" type="button" class="help-fab hidden" aria-label="إدارة الموظفين والفروع">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+      <span>الإدارة</span>
+    </button>
+    <button id="helpFab" type="button" class="help-fab" aria-label="مساعدة">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+      <span>مساعدة</span>
+    </button>
+  </div>
+</header>
+<section class="main">
+
+<section id="home" class="screen">
+  <div id="homeIcon" class="icon">⏳</div>
+  <h2 id="homeTitle">جاري التحقق</h2>
+  <p id="homeMsg" class="message">لحظة واحدة...</p>
+  <div id="actionButtons" class="action-buttons hidden">
+    <button id="checkinBtn" type="button" class="action checkin"><span class="btnIcon">▶</span><span>بدء زيارة</span></button>
+    <button id="checkoutBtn" type="button" class="action checkout"><span class="btnIcon">■</span><span>إنهاء زيارة</span></button>
+  </div>
+  <div id="feedback" class="feedback"></div>
+  <div id="homeProgress" class="progress"></div>
+</section>
+
+<section id="confirm" class="screen hidden">
+  <div id="confirmIcon" class="icon">📍</div>
+  <h2 id="confirmTitle"></h2>
+  <p id="confirmMsg" class="message"></p>
+  <div class="card">
+    <div class="row">
+      <div class="rowText"><div class="rowLabel">الوقت الحالي</div><div id="confirmTime" class="rowValue">--:--</div></div>
+      <div class="rowIcon">🕐</div>
+    </div>
+    <div class="row">
+      <div class="rowText"><div class="rowLabel">الموقع الحالي</div><div id="confirmAddress" class="rowValue">جارٍ تحديد الموقع...</div></div>
+      <div class="rowIcon">📍</div>
+    </div>
+    <div class="mapWrap">
+      <div id="confirmMapBox" class="mapBox">
+        <div id="confirmMapEl" style="width:100%;height:100%"></div>
+        <div id="confirmMapSkeleton" class="mapSkeleton">📍 جارٍ تحميل الخريطة...</div>
+      </div>
+    </div>
+  </div>
+  <button id="confirmBtn"></button>
+  <button id="backBtn" class="cancelText">إلغاء</button>
+  <div id="confirmProgress" class="progress"></div>
+</section>
+
+<section id="result" class="screen hidden">
+  <div class="icon success">✓</div>
+  <h2 id="resultTitle"></h2>
+  <p id="resultMsg" class="message"></p>
+  <div class="card">
+    <div class="row">
+      <div class="rowText"><div id="resultTimeLabel" class="rowLabel">وقت البدء</div><div id="resultTime" class="rowValue">--:--</div></div>
+      <div class="rowIcon tintSuccess">🕐</div>
+    </div>
+    <div class="row">
+      <div class="rowText"><div class="rowLabel">الموقع</div><div id="resultAddress" class="rowValue">—</div></div>
+      <div class="rowIcon tintSuccess">📍</div>
+    </div>
+  </div>
+  <div id="activeBanner" class="activeBanner hidden">
+    <div class="txt"><div id="activeBannerTitle" class="title">الزيارة نشطة الآن</div><span id="activeBannerTxt">يرجى تذكر إنهاء الزيارة عند الانتهاء.</span></div>
+    <div class="icon2">🛡️</div>
+  </div>
+  <div id="warning" class="warning hidden"><div class="warningTitle">تنبيه ⚠️</div><div id="warningMsg"></div><div id="supervisors" class="supervisors hidden"><div style="margin:10px 0 4px;font-weight:800">إبلاغ المشرف</div><div id="supervisorLinks"></div></div></div>
+  <button id="continueBtn">تم</button>
+</section>
+
+<section id="registration" class="screen hidden"><div class="icon">👤</div><h2>تسجيل حسابك</h2><p class="message">تم التعرف على حساب تيليجرام الخاص بك، ولكن لم يتم العثور عليه في نظام الموظفين.</p><button id="registerBtn">تسجيل حسابي</button></section>
+<section id="username" class="screen hidden"><div class="icon">👤</div><h2>اسم المستخدم مطلوب</h2><p class="message">يجب أن يكون لديك اسم مستخدم في تيليجرام حتى يمكن استخدام النظام.</p><div class="steps"><strong>لإنشاء اسم مستخدم:</strong><br>1. افتح إعدادات تيليجرام.<br>2. افتح ملفك الشخصي أو تعديل الملف الشخصي.<br>3. اختر Username.<br>4. اختر اسماً فريداً واحفظه.</div><button id="retryBtn">تحقق مرة أخرى</button></section>
+<section id="inactive" class="screen hidden"><div class="icon warningIcon">⏸️</div><h2>الحساب غير مفعل</h2><p class="message">حسابك موجود في النظام ولكنه غير مفعل حالياً.</p><button id="reactivateBtn">إعادة تفعيل حسابي</button></section>
+<section id="botNotStarted" class="screen hidden"><div class="icon">🤖</div><h2>تفعيل البوت مطلوب</h2><p class="message">حتى نتمكن من إرسال التنبيهات وإشعارات الحضور لك، يجب تفعيل البوت.</p><div class="steps"><strong>خطوات التفعيل:</strong><br>1. اضغط على زر "فتح البوت" بالأسفل.<br>2. اضغط على <strong>Start (بدء)</strong> أو <strong>Restart (إعادة تشغيل)</strong> في المحادثة.<br>3. عُد إلى هنا واضغط "لقد قمت ببدء البوت".</div><button id="startBotBtn">فتح البوت الآن</button><button id="retryBotBtn" class="back">لقد قمت ببدء البوت</button></section>
+
+</section><footer id="footer" class="footer"><span id="footerStatus">جاهز</span><span id="footerVersion"></span></footer></main>
+
+<div id="helpOverlay" class="help-overlay hidden">
+  <div class="help-inner">
+    <div class="help-header">
+      <button id="helpCloseBtn" type="button" class="help-close" aria-label="إغلاق">×</button>
+      <div class="help-title">مركز المساعدة</div>
+    </div>
+    <div class="tabs">
+      <button type="button" class="tab active" data-tab="employee">للموظف</button>
+      <button type="button" id="leaderTab" class="tab" data-tab="leader">لقائد الفريق</button>
+    </div>
+    <div class="tabContent">
+      <div id="helpList" class="faqList"></div>
+    </div>
+  </div>
+</div>
+
+<div id="successOverlay" class="help-overlay hidden">
+  <div class="success-box">
+    <div class="icon success">✓</div>
+    <h2 id="successTitle"></h2>
+    <p id="successMsg" class="message"></p>
+  </div>
+</div>
+
+<div id="adminOverlay" class="help-overlay hidden">
+  <div class="help-inner">
+    <div class="help-header">
+      <button id="adminCloseBtn" type="button" class="help-close" aria-label="إغلاق">×</button>
+      <div class="help-title">لوحة الإدارة</div>
+    </div>
+    <div class="tabs">
+      <button type="button" id="adminEmpTabBtn" class="adminTabBtn active" data-admintab="employees">الموظفون</button>
+      <button type="button" id="adminBranchTabBtn" class="adminTabBtn hidden" data-admintab="branches">الفروع</button>
+    </div>
+    <div class="tabContent">
+      <section id="adminEmployeesPanel" class="adminPanel">
+        <div id="adminEmpLockBanner" class="lockBanner hidden"></div>
+        <div id="adminEmpList" class="adminList"></div>
+        <div class="steps"><strong>تنبيه ⚠️</strong> إذا أردت إضافة موظف جديد أو إزالة موظف، يكفي إضافته إلى مجموعة تيليجرام أو إخراجه منها مباشرة - لا حاجة لأي خطوة أخرى هنا.</div>
+        <div class="adminSaveBar">
+          <button type="button" id="adminEmpSaveBtn" disabled>لا توجد تغييرات</button>
+        </div>
+      </section>
+      <section id="adminBranchesPanel" class="adminPanel hidden">
+        <div id="adminBranchLockBanner" class="lockBanner hidden"></div>
+        <button type="button" id="branchAddBtn" class="branchAddBtn">➕ إضافة فرع جديد</button>
+        <div id="adminBranchList" class="adminList"></div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<div id="unsavedOverlay" class="unsavedOverlay hidden">
+  <div class="unsavedBox">
+    <div id="unsavedMsg" class="unsavedMsg"></div>
+    <div class="unsavedActions">
+      <button type="button" id="unsavedContinueBtn">متابعة التعديل</button>
+      <button type="button" id="unsavedDiscardBtn" class="cancelText">تجاهل التغييرات</button>
+    </div>
+  </div>
+</div>
+
+<div id="dangerOverlay" class="unsavedOverlay hidden">
+  <div class="unsavedBox dangerBox">
+    <div class="dangerHead"><span class="dangerHeadIcon">🚨</span><span id="dangerTitle" class="dangerTitle"></span></div>
+    <div id="dangerMsg" class="unsavedMsg"></div>
+    <div class="unsavedActions">
+      <button type="button" id="dangerConfirmBtn" class="danger"></button>
+      <button type="button" id="dangerCancelBtn" class="cancelText">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const FRONTEND_CONFIG = {
+  // Application settings
+  SESSION_TIMEOUT_MINUTES: 55,
+  RATE_LIMIT_MINUTES: 15,
+  API_TIMEOUT_MS: 15000,
+  
+  // Alert Messages
+  ALERT_RATE_LIMIT: "لقد قمت بالتسجيل قبل قليل. الرجاء الانتظار لمدة 15 دقيقة بين كل عملية تسجيل.",
+  ALERT_SESSION_TIMEOUT: "التطبيق مفتوح في الخلفية لفترة طويلة، يرجى إعادة تشغيل التطبيق (Restart the app).",
+  ALERT_LOCATION_DENIED: "تم رفض الوصول إلى الموقع. اسمح للتطبيق باستخدام موقعك ثم حاول مرة أخرى.",
+  ALERT_LOCATION_UNAVAILABLE: "تعذر تحديد موقعك الحالي.",
+  ALERT_LOCATION_TIMEOUT: "انتهت مهلة تحديد الموقع. حاول مرة أخرى.",
+  ALERT_SAVE_ERROR: "تعذر الاتصال بالخادم أثناء الحفظ.",
+  ALERT_DELETE_ERROR: "تعذر الاتصال بالخادم أثناء حذف الفرع.",
+  ALERT_SAVE_PARTIAL: "تم حفظ باقي التغييرات، وتعذر حفظ التالي:\n",
+  
+  // UI States & Statuses
+  STATUS_READY: "جاهز",
+  STATUS_WAITING_BRANCH: "بانتظار تعيين الفرع",
+  STATUS_REVIEW: "مراجعة العملية",
+  STATUS_SAVED: "تم تسجيل العملية",
+  STATUS_REGISTRATION_REQUIRED: "التسجيل مطلوب",
+  STATUS_USERNAME_REQUIRED: "اسم المستخدم مطلوب",
+  STATUS_INACTIVE: "الحساب غير مفعل",
+  STATUS_BOT_REQUIRED: "تفعيل البوت مطلوب",
+  
+  // Progress & Loading Messages
+  MSG_DETERMINING_LOCATION: "جاري تحديد موقعك...",
+  MSG_DETERMINED_SAVING: "تم تحديد الموقع، جارٍ تسجيل العملية...",
+  MSG_LOADING: "🕐 جارٍ التحميل...",
+  MSG_CONNECTING: "جاري التحقق من الاتصال بالنظام...",
+  MSG_CONNECTED: "تم الاتصال بالخادم، لحظة واحدة...",
+  MSG_LOCATION_NOT_SUPPORTED: "الجهاز لا يدعم تحديد الموقع.",
+  MSG_LOCATION_FOUND: "تم تحديد الموقع",
+  MSG_LOCATION_FAILED: "تعذر تحديد الموقع، سيُعاد تحديده عند التأكيد.",
+  
+  // Unassigned Branch Screen
+  UNASSIGNED_TITLE: "بانتظار تعيين الفرع",
+  UNASSIGNED_MSG: "لم يتم تعيين فرع لك بعد. سيتم تفعيل أزرار الحضور والانصراف تلقائياً فور تعيين فرعك من قبل الإدارة.",
+  
+  // Admin Screens
+  ADMIN_NO_EMPLOYEES: "لا يوجد موظفون مسجلون بعد.",
+  ADMIN_NO_BRANCHES: "لا توجد فروع مضافة بعد.",
+  ADMIN_LOCKED_BY_OTHER: "🔒 مقفل من قبل مشرف آخر",
+  ADMIN_NO_CHANGES: "لا توجد تغييرات",
+  ADMIN_SAVE_CHANGES: "حفظ التغييرات",
+  ADMIN_SAVING: "جارٍ الحفظ...",
+  
+  // Confirmations
+  CONFIRM_UNSAVED_EMPLOYEES: "لديك تغييرات غير محفوظة في صفحة الموظفين.",
+  CONFIRM_UNSAVED_BRANCH: "لديك تغييرات غير محفوظة في هذا الفرع.",
+  CONFIRM_UNSAVED_CURRENT_BRANCH: "لديك تغييرات غير محفوظة في الفرع الحالي.",
+  CONFIRM_UNSAVED_CLOSE: " هل تريد الإغلاق بدون حفظ؟"
+};
+
+const tg=window.Telegram&&window.Telegram.WebApp;
+const BUSINESS_NAME = "زيارات المبيعات";
+document.getElementById("businessName").textContent = BUSINESS_NAME;
+const APP_VERSION = "Penguin Sales Tracker v1.1 ";
+document.getElementById("footerVersion").textContent = " · " + APP_VERSION;
+
+const API_URL="https://script.google.com/macros/s/AKfycbzS1rCL5jtyr5uZd_KRY0ScdXZ4cUUmOUsuyWEpWSL1X13048cjnSQpd5lOKpuN2w/exec";
+const DEFAULT_SUPERVISORS=[];
+const ARABIC_MONTHS=["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+const ERR={NOT_MEMBER:"عذراً، أنت غير موجود في المجموعة الأساسية ولا يمكنك استخدام النظام.",NOT_REGISTERED:"حسابك غير مسجل في النظام.",INACTIVE:"حسابك موجود في النظام ولكنه غير مفعل حالياً.",NO_USERNAME:"يجب أن يكون لديك اسم مستخدم في تيليجرام أولاً.",SERVICE_DOWN:"الخدمة متوقفة مؤقتاً، حاول مرة أخرى لاحقاً.",BACKEND_CONNECTION_FAILED:"تعذر الاتصال بخدمة النظام.",INVALID_ACTION:"العملية المطلوبة غير صحيحة.",INVALID_REQUEST:"الطلب غير صحيح.",INVALID_TELEGRAM_DATA:"تعذر التحقق من حساب تيليجرام.",SERVER_ERROR:"حدث خطأ في النظام. حاول مرة أخرى."};
+
+const UI_TEXT={
+  freeRoam:{
+    businessName:"زيارات المبيعات",
+    homeIcon:"🏬",
+    homeTitle:"جاهز لتسجيل زيارة",
+    homeMsg:"سجل بداية زيارتك لدى العميل لمتابعة وتسجيل الوقت والموقع تلقائياً.",
+    checkinLabel:"بدء زيارة",
+    checkoutLabel:"إنهاء زيارة",
+    confirmTitleIn:"تأكيد بدء الزيارة",
+    confirmTitleOut:"تأكيد إنهاء الزيارة",
+    confirmMsgIn:"سيتم تسجيل المعلومات التالية:",
+    confirmMsgOut:"سيتم تسجيل إنهاء الزيارة وتسجيل المعلومات التالية:",
+    confirmBtnIn:"بدء الزيارة الآن",
+    confirmBtnOut:"إنهاء الزيارة الآن",
+    resultTitleIn:"تم بدء الزيارة بنجاح",
+    resultTitleOut:"تم إنهاء الزيارة بنجاح",
+    resultMsgIn:"تم تسجيل موقعك ووقت بدء الزيارة بنجاح.",
+    resultMsgOut:"تم تسجيل موقعك ووقت إنهاء الزيارة بنجاح.",
+    resultTimeLabelIn:"وقت البدء",
+    resultTimeLabelOut:"وقت الانتهاء",
+    activeBannerTitle:"الزيارة نشطة الآن",
+    activeBannerTxt:"يرجى تذكر إنهاء الزيارة عند الانتهاء.",
+    registeredMsg:"أصبح حسابك مفعّلاً في النظام. يمكنك الآن تسجيل زياراتك."
+  },
+  geofence:{
+    businessName:"تسجيل الحضور و الإنصراف",
+    homeIcon:"🏢",
+    homeTitle:"جاهز لتسجيل الحضور",
+    homeMsg:"سجل حضورك أو انصرافك، مع التأكد من تواجدك داخل نطاق الفرع المخصص لك.",
+    checkinLabel:"حضور",
+    checkoutLabel:"إنصراف",
+    confirmTitleIn:"تأكيد الحضور",
+    confirmTitleOut:"تأكيد الانصراف",
+    confirmMsgIn:"سيتم التحقق من موقعك وتسجيل المعلومات التالية:",
+    confirmMsgOut:"سيتم التحقق من موقعك وتسجيل الانصراف والمعلومات التالية:",
+    confirmBtnIn:"تسجيل الحضور الآن",
+    confirmBtnOut:"تسجيل الانصراف الآن",
+    resultTitleIn:"تم تسجيل الحضور بنجاح",
+    resultTitleOut:"تم تسجيل الانصراف بنجاح",
+    resultMsgIn:"تم تسجيل موقعك ووقت الحضور بنجاح.",
+    resultMsgOut:"تم تسجيل موقعك ووقت الانصراف بنجاح.",
+    resultTimeLabelIn:"وقت الحضور",
+    resultTimeLabelOut:"وقت الانصراف",
+    activeBannerTitle:"دوامك نشط الآن",
+    activeBannerTxt:"يرجى تذكر تسجيل الانصراف عند الانتهاء.",
+    registeredMsg:"أصبح حسابك مفعّلاً في النظام. يمكنك الآن تسجيل حضورك وانصرافك."
+  }
+};
+function V(){return UI_TEXT[S.locationMode==="geofence"?"geofence":"freeRoam"]}
+
+const S={busy:false,action:null,name:"الموظف",isLeader:false,geofenceModuleAvailable:false,locationMode:"freeRoam",hasBranch:true,coords:null,coordsAt:0,address:null,clockTimer:null,lastSubmit:null,justRegistered:false,initTime:Date.now()};
+function branchUnassigned(){return S.locationMode==="geofence"&&S.hasBranch===false}
+
+const HELP_CONTENT={
+  employee:[
+    {q:"ليس لدي اسم مستخدم في تيليجرام، كيف أنشئه؟",a:"افتح إعدادات تيليجرام ← الملف الشخصي (Edit Profile) ← Username، ثم اختر اسماً فريداً واحفظه، وبعدها اضغط \"تحقق مرة أخرى\"."},
+    {q:"التطبيق يقول إن حسابي غير مسجل أو غير مفعل، ماذا أفعل؟",a:"اضغط الزر الظاهر على الشاشة (\"تسجيل حسابي\" أو \"إعادة تفعيل حسابي\"). إذا استمرت المشكلة تواصل مع المشرف."},
+    {q:"هل يمكنني كتابة رسالة للبوت والحصول على رد؟",a:"لا. البوت مخصص فقط لإرسال إشعارات النظام (مثل تنبيهات نسيان تسجيل الانصراف) ولا يستقبل أو يرد على المحادثات العادية. لأي استفسار أو مشكلة تواصل مع المشرف مباشرة."},
+    {q:"كيف أسجل بداية الزيارة؟",a:"من الشاشة الرئيسية اضغط \"بدء زيارة\"، راجع الوقت والموقع الظاهرين ثم اضغط \"بدء الزيارة الآن\". سيتم تسجيل موقعك ووقتك تلقائياً."},
+    {q:"كيف أنهي الزيارة؟",a:"اضغط \"إنهاء زيارة\" من الشاشة الرئيسية، راجع البيانات ثم اضغط \"إنهاء الزيارة الآن\"."},
+    {q:"لماذا يطلب التطبيق إذن الموقع؟",a:"لتحديد مكان الزيارة تلقائياً عند تسجيل البداية والنهاية. إذا رفضت الإذن بالخطأ يمكنك تفعيله من إعدادات المتصفح أو تيليجرام ثم إعادة المحاولة."},
+    {q:"سجّلت الدخول أو الخروج بشكل غير معتاد (نسيت تسجيل الانصراف السابق، أو نسيت تسجيل الحضور، أو ضغطت الزر مرتين)، ماذا يحدث؟",a:"لا داعي للقلق، سيتم تسجيل وقتك وموقعك بشكل طبيعي في كل الحالات. لكن التطبيق سيعرض لك تنبيهاً فورياً مع زر \" تواصل مع\" باسم قائد فريقك، وفي نفس الوقت يصل قائد الفريق تنبيه تلقائي على تيليجرام باسمك ليكون على علم بما حدث. اضغط الزر إذا احتجت توضيح الموقف معه مباشرة."},
+  ],
+  leader:[
+    {q:"كيف يتم تفعيل أو تسجيل حساب موظف جديد؟",a:"يطلب الموظف التسجيل أو إعادة التفعيل من داخل التطبيق، ثم تتم مراجعة الطلب واعتماده من لوحة الإدارة."},
+    {q:"هل يمكنني محادثة البوت مباشرة؟",a:"البوت لا يُستخدم للمحادثة العادية مع الموظفين، بل لإرسال الإشعارات. لكن بصفتك قائد فريق، يتحول البوت بالنسبة لك إلى لوحة تحكم مصغّرة للنظام."},
+    {q:"كيف أفتح لوحة التحكم الخاصة بي؟",a:"اكتب /start للبوت، أو أرسل أي كلمة أو رسالة، وستظهر لك فوراً مجموعة أزرار تحكم بالنظام."},
+    {q:"🔄 ما وظيفة زر \"إعادة نشر زر النظام\"؟",a:"يقوم بإعادة نشر زر فتح التطبيق (Web App) في المحادثة أو المجموعة، مفيد إذا اختفى الزر القديم أو أراد الموظفون الوصول إليه بسهولة من جديد."},
+    {q:"📢 ما وظيفة زر \"إرسال رسالة الترحيب للتسجيل\"؟",a:"يرسل رسالة ترحيبية تشرح للموظفين الجدد كيفية تسجيل حساباتهم وتفعيلها في النظام، مفيدة عند ضم موظفين جدد للمجموعة."},
+    {q:"📊 ما وظيفة زر \"إحصائية الموظفين\"؟",a:"يعرض لك ملخصاً سريعاً عن حالة الموظفين في النظام (عددهم، المفعّل وغير المفعّل، ومن يقوم بزيارة نشطة حالياً)."},
+    {q:"📈 ما وظيفة زر \"إرسال التقرير اليومي الآن\"؟",a:"يرسل تقرير الحضور والزيارات اليومي فوراً دون انتظار موعده المجدول تلقائياً، مفيد إذا احتجت للتقرير قبل وقته المعتاد."},
+    {q:"🆘 ما وظيفة زر \"تواصل مع\"؟",a:"يفتح لك محادثة تيليجرام مباشرة مع أحد مسؤولي (أدمن) تطبيق الويب نفسه. استخدمه إذا واجهت مشكلة تقنية في النظام أو احتجت دعماً منهم، وليس للتواصل مع الموظفين."},
+    {q:"كيف أعرف إذا سجّل أحد الموظفين حضوره أو انصرافه بشكل غير معتاد (نسي تسجيل سابق، أو سجّل مرتين)؟",a:"يصلك تنبيه تلقائي من البوت فور حدوث ذلك، يتضمن اسم الموظف، دون الحاجة لانتظار تواصله معك. في نفس الوقت يظهر للموظف تنبيه مماثل مع زر \"تواصل مع\" باسمك، ليتمكن من مراسلتك مباشرة على تيليجرام إذا احتاج توضيح الموقف."},
+    {q:"ما الفرق بين زر \"🆘 تواصل مع\" في قائمة /start وزر \"تواصل مع\" الذي يظهر للموظف داخل التطبيق؟",a:"الاسم متشابه لكن الوظيفة مختلفة تماماً: الزر داخل قائمة /start (الخاص بك) يوصلك بأحد مسؤولي تطبيق الويب لطلب دعم تقني. أما الزر الذي يظهر للموظف داخل التطبيق فيوصله بك أنت مباشرة عند حدوث مشكلة في تسجيل الحضور أو الانصراف."}
+  ]
+};
+let helpTab="employee";
+
+function formatTime(d){let h=d.getHours();const m=String(d.getMinutes()).padStart(2,"0");const suffix=h>=12?"م":"ص";h=h%12;if(h===0)h=12;return String(h).padStart(2,"0")+":"+m+" "+suffix}
+function formatDate(d){return d.getDate()+" "+ARABIC_MONTHS[d.getMonth()]+" "+d.getFullYear()}
+function startClock(){stopClock();const tick=()=>{const el=document.getElementById("confirmTime");if(el)el.textContent=formatTime(new Date())};tick();S.clockTimer=setInterval(tick,1000)}
+function stopClock(){if(S.clockTimer){clearInterval(S.clockTimer);S.clockTimer=null}}
+
+let confirmMap=null,confirmMarker=null,geocodeAbort=null;
+function ensureConfirmMap(lat,lng){
+  if(typeof L==="undefined")return;
+  if(!confirmMap){
+    confirmMap=L.map("confirmMapEl",{zoomControl:true,dragging:true,scrollWheelZoom:false,doubleClickZoom:true,tap:true}).setView([lat,lng],16);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"}).addTo(confirmMap);
+    confirmMarker=L.marker([lat,lng]).addTo(confirmMap);
+  }else{
+    confirmMap.setView([lat,lng],16);
+    confirmMarker.setLatLng([lat,lng]);
+  }
+  document.getElementById("confirmMapBox").classList.add("hasMap");
+  requestAnimationFrame(()=>confirmMap&&confirmMap.invalidateSize());
+}
+const geocodeCache = {};
+async function reverseGeocode(lat,lng){
+  const cacheKey = lat.toFixed(4) + "," + lng.toFixed(4);
+  if (geocodeCache[cacheKey]) return geocodeCache[cacheKey];
+  try{
+    if(geocodeAbort)geocodeAbort.abort();
+    geocodeAbort=new AbortController();
+    const timer=setTimeout(()=>geocodeAbort.abort(),4000);
+    const res=await fetch("https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat="+lat+"&lon="+lng+"&accept-language=ar&zoom=16",{signal:geocodeAbort.signal});
+    clearTimeout(timer);
+    if(!res.ok)return null;
+    const data=await res.json();
+    if(!data)return null;
+    const a=data.address||{};
+    const parts=[a.road||a.pedestrian||a.neighbourhood,a.suburb||a.city_district||a.city||a.town||a.village].filter(Boolean);
+    let addr;
+    if(parts.length) { addr = parts.join("، "); }
+    else { addr = data.display_name?data.display_name.split(",").slice(0,2).join("،"):null; }
+    if (addr) geocodeCache[cacheKey] = addr;
+    return addr;
+  }catch(e){return null}
+}
+
+async function loadConfirmLocationPreview(action){
+  const btn = document.getElementById("confirmBtn");
+  const prog = document.getElementById("confirmProgress");
+
+  if(!navigator.geolocation){
+    document.getElementById("confirmAddress").textContent=FRONTEND_CONFIG.MSG_LOCATION_NOT_SUPPORTED;
+    btn.disabled = false;
+    prog.classList.remove("show");
+    return;
+  }
+  try{
+    const p=await getLocation();
+    if(S.action!==action)return; // user navigated away before this resolved
+    S.coords={lat:p.coords.latitude,lng:p.coords.longitude,accuracy:p.coords.accuracy};
+    S.coordsAt=Date.now();
+    ensureConfirmMap(S.coords.lat,S.coords.lng);
+    document.getElementById("confirmAddress").textContent=FRONTEND_CONFIG.MSG_LOCATION_FOUND;
+    
+    // Unlock button once location is fetched successfully
+    btn.disabled = false;
+    prog.classList.remove("show");
+
+    const addr=await reverseGeocode(S.coords.lat,S.coords.lng);
+    if(S.action!==action)return;
+    if(addr){S.address=addr;const el=document.getElementById("confirmAddress");if(el)el.textContent=addr}
+  }catch(e){
+    if(S.action!==action)return;
+    document.getElementById("confirmAddress").textContent=FRONTEND_CONFIG.MSG_LOCATION_FAILED;
+    const sk=document.getElementById("confirmMapSkeleton");if(sk)sk.textContent="⚠️ تعذر عرض الخريطة";
+    
+    // Unlock button anyway so they can attempt to submit
+    btn.disabled = false;
+    prog.classList.remove("show");
+  }
+}
+
+function initTelegram(){if(!tg){renderError("يجب فتح النظام من داخل تيليجرام.");return false}try{tg.ready();tg.expand()}catch(e){}return true}
+function initData(){if(!tg||!tg.initData)throw Error("Telegram initData is unavailable.");return tg.initData}
+let __jsonpSeq=0;
+function apiJsonp(action,extra={}){
+  return new Promise((resolve,reject)=>{
+    const cbName="__apiCb"+(__jsonpSeq++)+"_"+Date.now();
+    const params=new URLSearchParams({action,initData:initData(),callback:cbName});
+    Object.entries(extra).forEach(([k,v])=>params.set(k,String(v)));
+    const script=document.createElement("script");
+    let done=false;
+    const cleanup=()=>{if(done)return;done=true;delete window[cbName];script.remove();clearTimeout(timer)};
+    const timer=setTimeout(()=>{cleanup();reject(Error(ERR.BACKEND_CONNECTION_FAILED))},15000);
+    window[cbName]=(data)=>{cleanup();resolve(data)};
+    script.onerror=()=>{cleanup();reject(Error(ERR.BACKEND_CONNECTION_FAILED))};
+    script.src=API_URL+"?"+params.toString();
+    document.body.appendChild(script);
+  });
+}
+async function api(action,extra={}){
+  const x=await apiJsonp(action,extra);
+  if(!x||typeof x!=="object")throw Error("استجابة الخادم غير صالحة.");
+  return x;
+}
+const ids=["home","confirm","result","registration","username","inactive","botNotStarted"];
+function screen(id){ids.forEach(x=>document.getElementById(x).classList.toggle("hidden",x!==id))}
+function busy(v){S.busy=v;document.querySelectorAll("button").forEach(b=>b.disabled=v);document.getElementById("homeProgress").classList.toggle("show",v);document.getElementById("confirmProgress").classList.toggle("show",v)}
+function home(icon,title,msg,tint){
+  screen("home");
+  const iconEl=document.getElementById("homeIcon");
+  iconEl.textContent=icon;
+  iconEl.className="icon"+(tint?" "+tint:"");
+  document.getElementById("homeTitle").textContent=title;
+  document.getElementById("homeMsg").textContent=msg;
+}
+function showSuccessOverlay(title,msg,duration){
+  document.getElementById("successTitle").textContent=title;
+  document.getElementById("successMsg").textContent=msg;
+  const el=document.getElementById("successOverlay");
+  el.classList.remove("hidden");
+  setTimeout(()=>el.classList.add("hidden"),duration||2200);
+}
+function feedback(msg){const e=document.getElementById("feedback");e.textContent=msg;e.className="feedback show"}
+function clearFeedback(){document.getElementById("feedback").className="feedback"}
+function renderHome(){
+  const previousRetry=document.getElementById("temporaryRetry");
+  if(previousRetry)previousRetry.remove();
+  clearFeedback();
+  const v=V();
+
+  if(branchUnassigned()){
+    home("⏳", FRONTEND_CONFIG.UNASSIGNED_TITLE, FRONTEND_CONFIG.UNASSIGNED_MSG, "warningIcon");
+    document.getElementById("actionButtons").classList.add("hidden");
+    document.getElementById("footerStatus").textContent=FRONTEND_CONFIG.STATUS_WAITING_BRANCH;
+    return;
+  }
+
+  home(v.homeIcon,v.homeTitle,v.homeMsg,"success");
+  document.getElementById("actionButtons").classList.remove("hidden");
+
+  const checkin=document.getElementById("checkinBtn");
+  const checkout=document.getElementById("checkoutBtn");
+  checkin.querySelector("span:last-child").textContent=v.checkinLabel;
+  checkout.querySelector("span:last-child").textContent=v.checkoutLabel;
+
+  checkin.onclick=()=>confirmAction("checkin");
+  checkout.onclick=()=>confirmAction("checkout");
+
+  document.getElementById("footerStatus").textContent=FRONTEND_CONFIG.STATUS_READY;
+}
+function renderError(msg){
+  const previous=document.getElementById("temporaryRetry");
+  if(previous)previous.remove();
+  screen("home");
+  document.getElementById("actionButtons").classList.add("hidden");
+  home("⚠️","تعذر المتابعة",msg,"warningIcon");
+  feedback("❌ "+msg);
+  document.getElementById("homeProgress").classList.remove("show");
+
+  const retry=document.createElement("button");
+  retry.type="button";
+  retry.textContent="حاول مرة أخرى";
+  retry.onclick=refresh;
+  retry.id="temporaryRetry";
+  document.getElementById("home").appendChild(retry);
+}
+
+function openConfirm(action){
+  S.action=action;S.coords=null;S.coordsAt=0;S.address=null;
+  screen("confirm");
+  const in_=action==="checkin";
+  const v=V();
+
+  document.getElementById("confirmIcon").className="icon"+(in_?"":" warningIcon");
+  document.getElementById("confirmIcon").textContent=in_?"📍":"🚩";
+  document.getElementById("confirmTitle").textContent=in_?v.confirmTitleIn:v.confirmTitleOut;
+  document.getElementById("confirmMsg").textContent=in_?v.confirmMsgIn:v.confirmMsgOut;
+
+  const btn=document.getElementById("confirmBtn");
+  btn.innerHTML=in_?'<span class="btnIcon">▶</span><span>'+v.confirmBtnIn+'</span>':'<span class="btnIcon">■</span><span>'+v.confirmBtnOut+'</span>';
+  btn.classList.toggle("danger",!in_);
+  btn.onclick=postAction;
+
+  document.getElementById("confirmAddress").textContent="جارٍ تحديد الموقع...";
+  document.getElementById("confirmMapBox").classList.remove("hasMap");
+  document.getElementById("confirmMapSkeleton").textContent="📍 جارٍ تحميل الخريطة...";
+
+  document.getElementById("footerStatus").textContent=FRONTEND_CONFIG.STATUS_REVIEW;
+  
+  // Lock proceed button while fetching location
+  btn.disabled = true;
+  document.getElementById("confirmProgress").classList.add("show");
+
+  startClock();
+  loadConfirmLocationPreview(action);
+}
+
+function confirmAction(action){
+  if(S.busy)return;
+  if(branchUnassigned())return;
+  if(S.lastSubmit){
+    const withinCooldown=(Date.now()-S.lastSubmit.time.getTime())<FRONTEND_CONFIG.RATE_LIMIT_MINUTES*60*1000;
+    const sameActionRepeated=S.lastSubmit.action===action;
+    // Free-roam: alternating checkin/checkout (hopping to a nearby
+    // visit) is always fine - only a repeated same action within the
+    // cooldown is blocked. Geofenced: no "nearby visit" to hop to, so
+    // any action within the cooldown is blocked, same or not.
+    if(withinCooldown && (sameActionRepeated || S.locationMode==="geofence")){
+      alert(FRONTEND_CONFIG.ALERT_RATE_LIMIT);
+      return;
+    }
+  }
+  openConfirm(action);
+}
+
+function getLocation(){return new Promise((resolve,reject)=>navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:true,timeout:FRONTEND_CONFIG.API_TIMEOUT_MS,maximumAge:0}))}
+
+async function postAction(){
+  if(S.busy)return;
+  if(Date.now() - S.initTime > FRONTEND_CONFIG.SESSION_TIMEOUT_MINUTES * 60 * 1000) {
+    alert(FRONTEND_CONFIG.ALERT_SESSION_TIMEOUT);
+    if(tg)tg.close();
+    return;
+  }
+  if(!["checkin","checkout"].includes(S.action)){renderError(ERR.INVALID_ACTION);return}
+  if(!navigator.geolocation){renderError("المتصفح لا يدعم تحديد الموقع الجغرافي.");return}
+  busy(true);
+  document.getElementById("confirmMsg").textContent=FRONTEND_CONFIG.MSG_DETERMINING_LOCATION;
+  try{
+    let coords;
+    if(S.coords&&Date.now()-S.coordsAt<8000){
+      coords=S.coords;
+    }else{
+      const p=await getLocation();
+      coords={lat:p.coords.latitude,lng:p.coords.longitude,accuracy:p.coords.accuracy};
+    }
+    document.getElementById("confirmMsg").textContent=FRONTEND_CONFIG.MSG_DETERMINED_SAVING;
+    const submitTime=new Date();
+    const r=await api(S.action,{latitude:coords.lat,longitude:coords.lng,accuracy:coords.accuracy});
+    if(!r.success){attendanceError(r);return}
+    S.lastSubmit={time:submitTime,address:S.address,action:S.action};
+    showResult(S.action,r);
+  }catch(e){
+    if(e.code===1)renderError("تم رفض الوصول إلى الموقع. اسمح للتطبيق باستخدام موقعك ثم حاول مرة أخرى.");
+    else if(e.code===2)renderError("تعذر تحديد موقعك الحالي.");
+    else if(e.code===3)renderError("انتهت مهلة تحديد الموقع. حاول مرة أخرى.");
+    else{console.error(e);renderError(e.message||ERR.SERVER_ERROR)}
+  }finally{busy(false)}
+}
+
+function showResult(action,r){
+  stopClock();
+  screen("result");
+  const in_=action==="checkin";
+  const v=V();
+  document.getElementById("resultTitle").textContent=in_?v.resultTitleIn:v.resultTitleOut;
+  document.getElementById("resultMsg").textContent=r.message||(in_?v.resultMsgIn:v.resultMsgOut);
+
+  const time=(S.lastSubmit&&S.lastSubmit.time)||new Date();
+  document.getElementById("resultTimeLabel").textContent=in_?v.resultTimeLabelIn:v.resultTimeLabelOut;
+  document.getElementById("resultTime").textContent=formatTime(time)+"  ·  "+formatDate(time);
+  document.getElementById("resultAddress").textContent=(S.lastSubmit&&S.lastSubmit.address)||"تم تسجيل الموقع";
+  document.getElementById("activeBanner").classList.toggle("hidden",!in_);
+  if(in_){
+    document.getElementById("activeBannerTitle").textContent=v.activeBannerTitle;
+    document.getElementById("activeBannerTxt").textContent=v.activeBannerTxt;
+  }
+
+  const w=warningFrom(r);if(w)showWarning(w,r.supervisors);else hideWarning();
+  document.getElementById("continueBtn").onclick=renderHome;
+  document.getElementById("footerStatus").textContent=FRONTEND_CONFIG.STATUS_SAVED;
+}
+function warningFrom(r){if(typeof r.warningMessage==="string"&&r.warningMessage.trim())return r.warningMessage.trim();if(typeof r.warning==="string"&&r.warning.trim())return r.warning.trim();if(r.warning&&typeof r.warning==="object")return r.warning.message||r.warning.text||null;if(r.hasWarning===true||r.missedCheckout===true||r.missedCheckin===true||r.previousVisitOpen===true||r.previousVisitUnclosed===true)return"يبدو أن الزيارة السابقة لم يتم تسجيل انتهائها. يمكنك متابعة عملك بشكل طبيعي، لكن يرجى إبلاغ المشرف.";return null}
+function showWarning(msg,list){document.getElementById("warning").classList.remove("hidden");document.getElementById("warningMsg").textContent=msg;const a=Array.isArray(list)&&list.length?list:DEFAULT_SUPERVISORS;const valid=a.filter(x=>x&&x.username);const box=document.getElementById("supervisorLinks");box.innerHTML="";valid.forEach(s=>{const u=String(s.username).replace(/^@/,"");const a=document.createElement("a");a.className="supervisor-link";a.href="https://t.me/"+encodeURIComponent(u);a.target="_blank";a.rel="noopener noreferrer";a.textContent="👤 "+(s.name||("@"+u));box.appendChild(a)});document.getElementById("supervisors").classList.toggle("hidden",!valid.length)}
+function hideWarning(){document.getElementById("warning").classList.add("hidden");document.getElementById("supervisors").classList.add("hidden");document.getElementById("supervisorLinks").innerHTML=""}
+function attendanceError(r){if(r.errorCode==="NOT_REGISTERED"){showRegistration();return}if(r.errorCode==="BOT_NOT_STARTED"){showBotNotStarted(r.botUrl);return}if(r.errorCode==="INACTIVE"){showInactive();return}if(r.errorCode==="NO_USERNAME"){showUsername();return}renderError(ERR[r.errorCode]||r.error||ERR.SERVER_ERROR)}
+function showRegistration(){stopClock();screen("registration");document.getElementById("footerStatus").textContent=FRONTEND_CONFIG.STATUS_REGISTRATION_REQUIRED}
+function showUsername(){stopClock();screen("username");document.getElementById("footerStatus").textContent=FRONTEND_CONFIG.STATUS_USERNAME_REQUIRED}
+function showInactive(){stopClock();screen("inactive");document.getElementById("footerStatus").textContent=FRONTEND_CONFIG.STATUS_INACTIVE}
+function showBotNotStarted(url){stopClock();screen("botNotStarted");document.getElementById("footerStatus").textContent=FRONTEND_CONFIG.STATUS_BOT_REQUIRED;if(url){document.getElementById("startBotBtn").onclick=()=>{if(tg)tg.openTelegramLink(url)};}}
+async function doRefresh(){home("⏳","جاري الاتصال",FRONTEND_CONFIG.MSG_CONNECTING);try{const ping=await api("ping");if(!ping||!ping.success||ping.service!=="online")throw Error("BACKEND_CONNECTION_FAILED");document.getElementById("welcome").textContent="متصل بالنظام ✓";home("🔄","جاري التحقق",FRONTEND_CONFIG.MSG_CONNECTED);const r=await api("status");if(!r.success){renderError(ERR[r.errorCode]||r.error||ERR.SERVER_ERROR);return}S.name=r.name||"الموظف";S.isLeader=!!r.isLeader;S.geofenceModuleAvailable=!!r.geofenceModuleAvailable;S.locationMode=r.locationMode==="geofence"?"geofence":"freeRoam";S.hasBranch=r.hasBranch!==false;document.getElementById("businessName").textContent=V().businessName;document.getElementById("adminManageFab").classList.toggle("hidden",!S.isLeader);document.getElementById("welcome").textContent="أهلاً، "+S.name;switch(r.state){case"NEW":showRegistration();break;case"NEW_NO_USERNAME":case"EXISTING_NO_USERNAME":showUsername();break;case"INACTIVE":showInactive();break;case"ACTIVE":renderHome();if(S.justRegistered){S.justRegistered=false;showSuccessOverlay("تم تسجيل حسابك بنجاح",V().registeredMsg)}break;default:renderError("تعذر معرفة حالة حسابك.")}}catch(e){console.error("Backend connection/status error:",e);renderError("تعذر الاتصال بالنظام. تحقق من اتصال الإنترنت وحاول مرة أخرى.")}}
+async function refresh(){if(!initTelegram()||S.busy)return;busy(true);try{await doRefresh()}finally{busy(false)}}
+async function register(){if(!initTelegram()||S.busy)return;busy(true);try{const r=await api("register");if(!r.success){if(r.errorCode==="NO_USERNAME")showUsername();else if(r.errorCode==="BOT_NOT_STARTED")showBotNotStarted(r.botUrl);else renderError(ERR[r.errorCode]||r.error||ERR.SERVER_ERROR);return}S.justRegistered=true;await doRefresh()}catch(e){renderError(e.message||ERR.SERVER_ERROR)}finally{busy(false)}}
+document.getElementById("backBtn").onclick=()=>{if(!S.busy){stopClock();renderHome()}};document.getElementById("registerBtn").onclick=register;document.getElementById("retryBtn").onclick=refresh;document.getElementById("reactivateBtn").onclick=register;document.getElementById("retryBotBtn").onclick=register;
+if(new URLSearchParams(location.search).get("previewSuccess")==="1"){renderHome();showSuccessOverlay("تم تسجيل حسابك بنجاح",V().registeredMsg)}
+else if(initTelegram())refresh();
+
+const AdminS={employees:[],original:{},dirty:{},branches:[],branchList:[],loadedBranches:false,
+  lock:{employees:{editable:true,ownerName:null},branches:{editable:true,ownerName:null}}
+};
+let empRowEls={};
+let openEmpDetails=null;
+function closeOpenEmpRow(){
+  openEmpDetails&&openEmpDetails.classList.add("hidden");
+  openEmpDetails=null;
+}
+
+let openBranchDetails=null;
+let openBranchIsDirty=null;
+let openBranchDiscard=null;
+function closeOpenBranchRow(){
+  openBranchDiscard&&openBranchDiscard();
+  openBranchDetails&&openBranchDetails.classList.add("hidden");
+  openBranchDetails=null;openBranchIsDirty=null;openBranchDiscard=null;
+}
+
+function renderListLoading(container){
+  container.innerHTML="";
+  const p=document.createElement("div");p.className="message";p.textContent=FRONTEND_CONFIG.MSG_LOADING;
+  container.appendChild(p);
+  const bar=document.createElement("div");bar.className="progress show";
+  container.appendChild(bar);
+}
+function renderListError(container,message,retryFn){
+  container.innerHTML="";
+  const p=document.createElement("div");p.className="message";p.textContent=message||"تعذر التحميل.";
+  container.appendChild(p);
+  const btn=document.createElement("button");btn.type="button";btn.textContent="🔄 إعادة المحاولة";
+  btn.onclick=retryFn;
+  container.appendChild(btn);
+}
+
+const ADMIN_LOCK_POLL_MS=20000;
+let adminLockPollTimer=null;
+function activeAdminTab(){
+  return document.getElementById("adminEmpTabBtn").classList.contains("active")?"employees":"branches";
+}
+async function acquireOrRefreshLock(tab){
+  try{
+    const r=await api("adminTabLock",{tab});
+    if(r&&r.success)AdminS.lock[tab]={editable:!!r.editable,ownerName:r.ownerName||null};
+  }catch(e){
+  }
+  applyLockUI(tab);
+}
+function applyLockUI(tab){
+  const state=AdminS.lock[tab];
+  const locked=!state.editable;
+  const panelId=tab==="employees"?"adminEmployeesPanel":"adminBranchesPanel";
+  const bannerId=tab==="employees"?"adminEmpLockBanner":"adminBranchLockBanner";
+  document.getElementById(panelId).classList.toggle("panelLocked",locked);
+  const banner=document.getElementById(bannerId);
+  banner.classList.toggle("hidden",!locked);
+  if(locked)banner.textContent="🔒 قيد التعديل الآن من قبل "+(state.ownerName||"مشرف آخر")+" - يمكنك الاطلاع فقط حتى ينتهي.";
+  if(tab==="employees")updateAdminSaveBar();
+}
+function startLockPolling(tab){
+  stopLockPolling();
+  acquireOrRefreshLock(tab);
+  adminLockPollTimer=setInterval(()=>acquireOrRefreshLock(activeAdminTab()),ADMIN_LOCK_POLL_MS);
+}
+function stopLockPolling(){
+  if(adminLockPollTimer){clearInterval(adminLockPollTimer);adminLockPollTimer=null}
+}
+function releaseLockBestEffort(tab){
+  if(!tab)return;
+  api("adminTabUnlock",{tab}).catch(()=>{});
+}
+
+function openAdminPanel(){
+  document.getElementById("adminBranchTabBtn").classList.toggle("hidden",!S.geofenceModuleAvailable);
+  setAdminTab("employees");
+  document.querySelector(".app").scrollTop=0;
+  document.getElementById("adminOverlay").classList.remove("hidden");
+  loadAdminEmployees();
+  startLockPolling("employees");
+}
+
+let unsavedConfirmResolve=null;
+function confirmUnsaved(message){
+  return new Promise(resolve=>{
+    unsavedConfirmResolve=resolve;
+    document.getElementById("unsavedMsg").textContent=message;
+    document.getElementById("unsavedOverlay").classList.remove("hidden");
+  });
+}
+document.getElementById("unsavedContinueBtn").onclick=()=>{
+  document.getElementById("unsavedOverlay").classList.add("hidden");
+  const resolve=unsavedConfirmResolve;unsavedConfirmResolve=null;
+  if(resolve)resolve(false);
+};
+document.getElementById("unsavedDiscardBtn").onclick=()=>{
+  document.getElementById("unsavedOverlay").classList.add("hidden");
+  const resolve=unsavedConfirmResolve;unsavedConfirmResolve=null;
+  if(resolve)resolve(true);
+};
+
+let dangerConfirmResolve=null;
+function confirmDanger(title,message,confirmLabel){
+  return new Promise(resolve=>{
+    dangerConfirmResolve=resolve;
+    document.getElementById("dangerTitle").textContent=title;
+    document.getElementById("dangerMsg").textContent=message;
+    document.getElementById("dangerConfirmBtn").textContent=confirmLabel;
+    document.getElementById("dangerOverlay").classList.remove("hidden");
+  });
+}
+document.getElementById("dangerConfirmBtn").onclick=()=>{
+  document.getElementById("dangerOverlay").classList.add("hidden");
+  const resolve=dangerConfirmResolve;dangerConfirmResolve=null;
+  if(resolve)resolve(true);
+};
+document.getElementById("dangerCancelBtn").onclick=()=>{
+  document.getElementById("dangerOverlay").classList.add("hidden");
+  const resolve=dangerConfirmResolve;dangerConfirmResolve=null;
+  if(resolve)resolve(false);
+};
+
+function branchFormDirty(){
+  return !!(openBranchIsDirty&&openBranchIsDirty());
+}
+
+async function closeAdminPanel(){
+  if(Object.values(AdminS.dirty).some(Boolean)){
+    if(!await confirmUnsaved("لديك تغييرات غير محفوظة في صفحة الموظفين. هل تريد الإغلاق بدون حفظ؟"))return;
+    discardAllEmployeeEdits();
+  }
+  if(branchFormDirty()){
+    if(!await confirmUnsaved("لديك تغييرات غير محفوظة في نموذج الفرع. هل تريد الإغلاق بدون حفظ؟"))return;
+  }
+  if(openEmpDetails)closeOpenEmpRow();
+  if(openBranchDetails)closeOpenBranchRow();
+  document.getElementById("adminOverlay").classList.add("hidden");
+  releaseLockBestEffort(activeAdminTab());
+  stopLockPolling();
+}
+async function switchAdminTab(tab){
+  const curTab=document.getElementById("adminEmpTabBtn").classList.contains("active")?"employees":"branches";
+  if(curTab===tab){setAdminTab(tab);return}
+  if(curTab==="employees"&&Object.values(AdminS.dirty).some(Boolean)){
+    if(!await confirmUnsaved("لديك تغييرات غير محفوظة في صفحة الموظفين."))return;
+    discardAllEmployeeEdits();
+  }
+  if(curTab==="branches"&&branchFormDirty()){
+    if(!await confirmUnsaved("لديك تغييرات غير محفوظة في نموذج الفرع."))return;
+  }
+  if(curTab==="employees"&&openEmpDetails)closeOpenEmpRow();
+  if(curTab==="branches"&&openBranchDetails)closeOpenBranchRow();
+  setAdminTab(tab);
+  releaseLockBestEffort(curTab);
+  startLockPolling(tab);
+}
+function setAdminTab(tab){
+  document.getElementById("adminEmpTabBtn").classList.toggle("active",tab==="employees");
+  document.getElementById("adminBranchTabBtn").classList.toggle("active",tab==="branches");
+  document.getElementById("adminEmployeesPanel").classList.toggle("hidden",tab!=="employees");
+  document.getElementById("adminBranchesPanel").classList.toggle("hidden",tab!=="branches");
+  if(tab==="branches"&&!AdminS.loadedBranches)loadAdminBranches();
+}
+
+const JOB_TITLE_BRANCH="موظف فرع";
+const JOB_TITLE_FIELD="مندوب مبيعات ميداني";
+function normalizedJobTitle(emp){
+  if(emp.jobTitle===JOB_TITLE_FIELD)return JOB_TITLE_FIELD;
+  if(emp.jobTitle===JOB_TITLE_BRANCH)return JOB_TITLE_BRANCH;
+  return (S.geofenceModuleAvailable&&emp.branchId)?JOB_TITLE_BRANCH:JOB_TITLE_FIELD;
+}
+async function loadAdminEmployees(){
+  const list=document.getElementById("adminEmpList");
+  renderListLoading(list);
+  try{
+    const r=await api("adminEmployeesList");
+    if(!r.success){renderListError(list,r.error||"تعذر التحميل.",loadAdminEmployees);return}
+    AdminS.employees=r.employees||[];
+    AdminS.branches=r.branches||[];
+    AdminS.original={};
+    AdminS.dirty={};
+    AdminS.employees.forEach(e=>{AdminS.original[e.chatId]={name:e.name,jobTitle:normalizedJobTitle(e),branchId:e.branchId}});
+    renderAdminEmployees();
+    updateAdminSaveBar();
+  }catch(e){renderListError(list,"تعذر تحميل قائمة الموظفين.",loadAdminEmployees)}
+}
+function branchSelectOptions(select,selectedId){
+  select.innerHTML="";
+  const matchesReal=selectedId&&AdminS.branches.some(b=>b.id===selectedId);
+
+  const noneOpt=document.createElement("option");
+  noneOpt.value="";
+  noneOpt.textContent="⚠️ بدون فرع (يتطلب تعيين)";
+  select.appendChild(noneOpt);
+
+  AdminS.branches.forEach(b=>{
+    const opt=document.createElement("option");
+    opt.value=b.id;opt.textContent=b.name;
+    select.appendChild(opt);
+  });
+  select.value=matchesReal?selectedId:"";
+  select.classList.toggle("selectError",!select.value);
+}
+function makeRadio(name,value,label,checked){
+  const wrap=document.createElement("label");wrap.className="radioOption";
+  const input=document.createElement("input");input.type="radio";input.name=name;input.value=value;input.checked=checked;
+  const span=document.createElement("span");span.textContent=label;
+  wrap.append(input,span);
+  return{wrap,input};
+}
+function renderAdminEmployees(){
+  const list=document.getElementById("adminEmpList");
+  list.innerHTML="";
+  empRowEls={};
+  openEmpDetails=null;
+  if(!AdminS.employees.length){
+    const m=document.createElement("div");m.className="message";m.textContent="لا يوجد موظفون مسجلون بعد.";
+    list.appendChild(m);return;
+  }
+  AdminS.employees.forEach(emp=>{
+    const row=document.createElement("div");row.className="empRow";
+
+    const summary=document.createElement("div");summary.className="empRowSummary";
+    const text=document.createElement("div");text.className="rowText";
+    const nameEl=document.createElement("div");nameEl.className="rowValue";nameEl.textContent="👤 "+(emp.name||"—");
+    const metaEl=document.createElement("div");metaEl.className="rowLabel metaLtr";metaEl.textContent=(emp.username?"@"+emp.username:"—")+" · "+(emp.code||"—");
+    let roleEl=null;
+    if(S.geofenceModuleAvailable){
+      const empIsBranch=normalizedJobTitle(emp)===JOB_TITLE_BRANCH;
+      let roleLine=empIsBranch?JOB_TITLE_BRANCH:JOB_TITLE_FIELD;
+      if(empIsBranch){
+        const br=AdminS.branches.find(x=>x.id===emp.branchId);
+        roleLine+=" · "+(br?br.name:"⚠️ بدون فرع (يتطلب تعيين)");
+        row.classList.toggle("empRowError",!br);
+      }
+      roleEl=document.createElement("div");roleEl.className="rowLabel";roleEl.textContent=roleLine;
+    }
+    text.append(nameEl,metaEl);
+    if(roleEl)text.append(roleEl);
+    const statusDot=document.createElement("div");statusDot.className="empStatusDot"+(emp.status==="Active"?" on":"");statusDot.title=emp.status==="Active"?"مفعّل":"غير مفعّل";
+    const dirtyDot=document.createElement("div");dirtyDot.className="dirtyDot hidden";dirtyDot.title="يوجد تغييرات غير محفوظة";
+    const editBtn=document.createElement("button");editBtn.type="button";editBtn.className="rowIconBtn";editBtn.textContent="✏️";editBtn.title="تعديل";
+    summary.append(text,statusDot,dirtyDot,editBtn);
+
+    const details=document.createElement("div");details.className="empRowDetails hidden";
+
+    const initialIsBranch=S.geofenceModuleAvailable&&normalizedJobTitle(emp)===JOB_TITLE_BRANCH;
+    const jobWrap=document.createElement("div");jobWrap.className="jobTitleGroup";
+    const jobLabel=document.createElement("div");jobLabel.className="formLabel";jobLabel.style.margin="0";jobLabel.textContent="المسمى الوظيفي";
+    const radios=document.createElement("div");radios.className="jobTitleRadios";
+    const radioName="jobTitle_"+emp.chatId;
+    const branchOpt=makeRadio(radioName,"branch",JOB_TITLE_BRANCH,initialIsBranch);
+    const fieldOpt=makeRadio(radioName,"field",JOB_TITLE_FIELD,!initialIsBranch);
+    radios.append(branchOpt.wrap,fieldOpt.wrap);
+    jobWrap.append(jobLabel,radios);
+    details.appendChild(jobWrap);
+
+    let branchSelect=null;
+    let branchSelectWrap=null;
+    if(S.geofenceModuleAvailable){
+      branchSelectWrap=document.createElement("div");branchSelectWrap.className="selectWrap";
+      branchSelect=document.createElement("select");
+      branchSelectOptions(branchSelect,emp.branchId);
+      branchSelectWrap.appendChild(branchSelect);
+      branchSelectWrap.classList.toggle("hidden",!initialIsBranch);
+      details.appendChild(branchSelectWrap);
+    }
+
+    row.append(summary,details);
+    list.appendChild(row);
+
+    function toggleDetails(){
+      const opening=details.classList.contains("hidden");
+      if(openEmpDetails&&openEmpDetails!==details)openEmpDetails.classList.add("hidden");
+      details.classList.toggle("hidden");
+      openEmpDetails=opening?details:null;
+    }
+    summary.onclick=toggleDetails;
+    editBtn.onclick=(e)=>{e.stopPropagation();toggleDetails()};
+
+    function currentJobTitle(){return branchOpt.input.checked?JOB_TITLE_BRANCH:JOB_TITLE_FIELD}
+    function currentBranchId(){return(branchOpt.input.checked&&branchSelect)?branchSelect.value:""}
+    function updateBranchVisibility(){if(branchSelectWrap)branchSelectWrap.classList.toggle("hidden",!branchOpt.input.checked)}
+
+    function checkDirty(){
+      const orig=AdminS.original[emp.chatId];
+      const isDirty=currentJobTitle()!==orig.jobTitle||currentBranchId()!==orig.branchId;
+      AdminS.dirty[emp.chatId]=isDirty;
+      dirtyDot.classList.toggle("hidden",!isDirty);
+      updateAdminSaveBar();
+    }
+    branchOpt.input.onchange=()=>{updateBranchVisibility();checkDirty()};
+    fieldOpt.input.onchange=()=>{updateBranchVisibility();checkDirty()};
+    if(branchSelect)branchSelect.onchange=()=>{
+      branchSelect.classList.toggle("selectError",!branchSelect.value);
+      checkDirty();
+    };
+
+    function revert(){
+      const orig=AdminS.original[emp.chatId];
+      branchOpt.input.checked=orig.jobTitle===JOB_TITLE_BRANCH;
+      fieldOpt.input.checked=orig.jobTitle!==JOB_TITLE_BRANCH;
+      if(branchSelect)branchSelectOptions(branchSelect,orig.branchId);
+      updateBranchVisibility();
+      AdminS.dirty[emp.chatId]=false;
+      dirtyDot.classList.add("hidden");
+    }
+
+    empRowEls[emp.chatId]={name:emp.name,branchOpt,fieldOpt,branchSelect,currentJobTitle,currentBranchId,revert};
+  });
+}
+function discardAllEmployeeEdits(){
+  Object.values(empRowEls).forEach(els=>els&&els.revert&&els.revert());
+  updateAdminSaveBar();
+}
+function updateAdminSaveBar(){
+  const count=Object.values(AdminS.dirty).filter(Boolean).length;
+  const btn=document.getElementById("adminEmpSaveBtn");
+  const locked=!AdminS.lock.employees.editable;
+  btn.disabled=locked||count===0;
+  btn.textContent=locked?"🔒 مقفل من قبل مشرف آخر":(count>0?("حفظ التغييرات ("+count+")"):"لا توجد تغييرات");
+}
+async function saveAdminEmployees(){
+  const changedIds=Object.keys(AdminS.dirty).filter(id=>AdminS.dirty[id]);
+  if(!changedIds.length)return;
+  if(!AdminS.lock.employees.editable)return;
+
+  const unresolved=changedIds
+    .map(id=>({id,els:empRowEls[id]}))
+    .filter(x=>x.els&&x.els.currentJobTitle()===JOB_TITLE_BRANCH&&!x.els.currentBranchId());
+  if(unresolved.length){
+    const namesInline=unresolved.map(x=>x.els.name).join(", ");
+    const ok=await confirmDanger(
+      "تحذير - لم يتم تحديد فرع",
+      (unresolved.length>1
+        ?"لم يتم اختيار فرع لهؤلاء الموظفين: "+namesInline+"."
+        :"لم يتم اختيار فرع للموظف "+namesInline+".")+
+      " ربما لم يقرر المشرف بعد أي فرع سيُسند إليهم. سيتم حفظ التغييرات، لكن لن يتمكنوا من تسجيل حضور أو انصراف حتى يتم تعيين فرع لهم لاحقاً.",
+      "نعم، احفظ بدون فرع"
+    );
+    if(!ok)return;
+  }
+
+  const btn=document.getElementById("adminEmpSaveBtn");
+  btn.disabled=true;btn.textContent="جارٍ الحفظ...";
+  const changes=changedIds.map(id=>{
+    const els=empRowEls[id];
+    return{chatId:id,name:els.name,jobTitle:els.currentJobTitle(),branchId:els.currentBranchId()};
+  });
+  try{
+    const r=await api("adminEmployeesSave",{changes:JSON.stringify(changes)});
+    if(!r.success){alert(r.error||"تعذر حفظ التغييرات.");return}
+    (r.saved||[]).forEach(id=>{
+      AdminS.dirty[id]=false;
+      const orig=AdminS.original[id];const els=empRowEls[id];
+      if(els&&orig){
+        orig.jobTitle=els.currentJobTitle();
+        orig.branchId=els.currentBranchId();
+      }
+      const emp=AdminS.employees.find(e=>e.chatId===id);
+      if(emp&&els){
+        emp.jobTitle=els.currentJobTitle();
+        emp.branchId=els.currentBranchId();
+      }
+    });
+    renderAdminEmployees();
+    if(r.failed&&r.failed.length){
+      const lines=r.failed.map(f=>{
+        const emp=AdminS.employees.find(e=>e.chatId===f.chatId);
+        return(emp?emp.name:f.chatId)+": "+f.error;
+      }).join("\n");
+      alert("تم حفظ باقي التغييرات، وتعذر حفظ التالي:\n"+lines);
+    }
+  }catch(e){
+    alert("تعذر الاتصال بالخادم أثناء الحفظ.");
+  }finally{
+    updateAdminSaveBar();
+  }
+}
+
+let branchRowSeq=0;
+
+async function loadAdminBranches(){
+  const list=document.getElementById("adminBranchList");
+  renderListLoading(list);
+  try{
+    const r=await api("adminBranchesList");
+    if(!r.success){renderListError(list,r.error||"تعذر التحميل.",loadAdminBranches);return}
+    AdminS.branchList=r.branches||[];
+    AdminS.loadedBranches=true;
+    AdminS.branches=AdminS.branchList.map(b=>({id:b.id,name:b.name}));
+    if(AdminS.employees.length)renderAdminEmployees();
+    renderAdminBranchList();
+  }catch(e){renderListError(list,"تعذر تحميل قائمة الفروع.",loadAdminBranches)}
+}
+function renderAdminBranchList(){
+  const list=document.getElementById("adminBranchList");
+  list.innerHTML="";
+  openBranchDetails=null;openBranchIsDirty=null;openBranchDiscard=null;
+  if(!AdminS.branchList.length){
+    const m=document.createElement("div");m.className="message";m.textContent="لا توجد فروع مضافة بعد.";
+    list.appendChild(m);return;
+  }
+  AdminS.branchList.forEach(b=>list.appendChild(buildBranchRow(b,false).row));
+}
+
+async function requestOpenBranchRow(rowCtx){
+  if(openBranchDetails&&openBranchDetails!==rowCtx.details){
+    if(openBranchIsDirty&&openBranchIsDirty()){
+      if(!await confirmUnsaved("لديك تغييرات غير محفوظة في الفرع الحالي."))return;
+    }
+    closeOpenBranchRow();
+  }
+  const opening=rowCtx.details.classList.contains("hidden");
+  if(opening){
+    rowCtx.details.classList.remove("hidden");
+    openBranchDetails=rowCtx.details;
+    openBranchIsDirty=rowCtx.isDirty;
+    openBranchDiscard=rowCtx.discard;
+    rowCtx.onOpen();
+    document.querySelector("#adminBranchesPanel").scrollIntoView({block:"nearest"});
+  }else{
+    if(rowCtx.isDirty()){
+      if(!await confirmUnsaved("لديك تغييرات غير محفوظة في هذا الفرع."))return;
+    }
+    rowCtx.discard();
+    rowCtx.details.classList.add("hidden");
+    openBranchDetails=null;openBranchIsDirty=null;openBranchDiscard=null;
+  }
+}
+
+function buildBranchRow(b,isNew){
+  const row=document.createElement("div");row.className="branchRowWrap";
+
+  const summary=document.createElement("div");summary.className="branchRowSummary";
+  const text=document.createElement("div");text.className="rowText";
+  const nameEl=document.createElement("div");nameEl.className="rowValue branchName";nameEl.textContent="📍 "+(isNew?"فرع جديد":b.name);
+  text.append(nameEl);
+
+  const actions=document.createElement("div");actions.className="branchRowActions";
+  const editBtn=document.createElement("button");editBtn.type="button";editBtn.className="rowIconBtn";editBtn.textContent="✏️";editBtn.title="تعديل";
+  actions.append(editBtn);
+  let deleteBtn=null;
+  if(!isNew){
+    deleteBtn=document.createElement("button");deleteBtn.type="button";deleteBtn.className="rowIconBtn";deleteBtn.textContent="🗑️";deleteBtn.title="حذف";
+    actions.append(deleteBtn);
+  }
+  summary.append(text,actions);
+
+  const details=document.createElement("div");details.className="branchRowDetails hidden";
+
+  const nameWrap=document.createElement("div");nameWrap.className="formInlineLabel";
+  const nameLabel=document.createElement("label");nameLabel.className="formLabel";nameLabel.textContent="اسم الفرع";
+  const nameInput=document.createElement("input");nameInput.type="text";nameInput.placeholder="أدخل اسم الفرع";
+  nameWrap.append(nameLabel,nameInput);
+  details.appendChild(nameWrap);
+
+  const linkWrap=document.createElement("div");linkWrap.className="inputClearWrap";linkWrap.style.marginTop="11px";
+  const linkInput=document.createElement("input");linkInput.type="text";linkInput.placeholder="الصق رابط الموقع هنا";
+  const linkClearBtn=document.createElement("button");linkClearBtn.type="button";linkClearBtn.className="inputClearBtn hidden";linkClearBtn.textContent="✕";linkClearBtn.title="مسح";linkClearBtn.setAttribute("aria-label","مسح رابط الموقع");
+  linkWrap.append(linkInput,linkClearBtn);
+  details.appendChild(linkWrap);
+  const feedback=document.createElement("div");feedback.className="formHint";
+  details.appendChild(feedback);
+  const extractProgress=document.createElement("div");extractProgress.className="progress";
+  details.appendChild(extractProgress);
+
+  const row2=document.createElement("div");row2.className="formRow2";
+  const latWrap=document.createElement("div");
+  const latLabel=document.createElement("label");latLabel.className="formLabel";latLabel.textContent="خط العرض (Latitude)";
+  const latInput=document.createElement("input");latInput.type="text";latInput.readOnly=true;
+  latWrap.append(latLabel,latInput);
+  const lngWrap=document.createElement("div");
+  const lngLabel=document.createElement("label");lngLabel.className="formLabel";lngLabel.textContent="خط الطول (Longitude)";
+  const lngInput=document.createElement("input");lngInput.type="text";lngInput.readOnly=true;
+  lngWrap.append(lngLabel,lngInput);
+  row2.append(latWrap,lngWrap);
+  details.appendChild(row2);
+
+  const seq=++branchRowSeq;
+  const mapElId="branchMapEl_"+seq;
+  const mapWrap=document.createElement("div");mapWrap.className="mapWrap branchMapWrap";
+  const mapBox=document.createElement("div");mapBox.className="mapBox branchMapBox";
+  const mapEl=document.createElement("div");mapEl.id=mapElId;mapEl.style.cssText="width:100%;height:100%";
+  const skeleton=document.createElement("div");skeleton.className="mapSkeleton";skeleton.textContent="📍 استخرج الإحداثيات لعرض الخريطة";
+  mapBox.append(mapEl,skeleton);
+  mapWrap.appendChild(mapBox);
+  details.appendChild(mapWrap);
+
+  const btnWrap=document.createElement("div");btnWrap.className="action-buttons";
+  const saveBtn=document.createElement("button");saveBtn.type="button";saveBtn.className="action";saveBtn.textContent=isNew?"حفظ الفرع":"حفظ التغييرات";
+  const cancelBtn=document.createElement("button");cancelBtn.type="button";cancelBtn.className="cancelText";cancelBtn.textContent="إلغاء";
+  btnWrap.append(saveBtn,cancelBtn);
+  details.appendChild(btnWrap);
+
+  row.append(summary,details);
+
+  let map=null,marker=null;
+  let coordsValid=false;
+  let extractInFlight=false;
+  let extractTimer=null;
+  let original={name:"",lat:"",lng:"",link:""};
+  const radiusMeters=(b&&b.radiusMeters)||100;
+
+  function ensureMap(lat,lng){
+    if(typeof L==="undefined")return;
+    if(!map){
+      map=L.map(mapElId,{zoomControl:true,dragging:true,scrollWheelZoom:false,doubleClickZoom:true,tap:true}).setView([lat,lng],16);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"}).addTo(map);
+      marker=L.marker([lat,lng]).addTo(map);
+    }else{
+      map.setView([lat,lng],16);
+      marker.setLatLng([lat,lng]);
+    }
+    mapBox.classList.add("hasMap");
+    requestAnimationFrame(()=>map&&map.invalidateSize());
+  }
+  function updateSaveEnabled(){
+    const name=nameInput.value.trim();
+    saveBtn.disabled=!(name&&coordsValid&&!extractInFlight);
+  }
+  function isDirty(){
+    return nameInput.value!==original.name||latInput.value!==original.lat||lngInput.value!==original.lng||linkInput.value!==original.link;
+  }
+  function updateLinkClearBtn(){
+    linkClearBtn.classList.toggle("hidden",!linkInput.value);
+  }
+  function fillFromBranch(){
+    nameInput.value=b?b.name:"";
+    linkInput.value="";
+    latInput.value=b?String(b.lat):"";
+    lngInput.value=b?String(b.lng):"";
+    feedback.textContent="";
+    extractProgress.classList.remove("show");
+    mapBox.classList.remove("hasMap");
+    coordsValid=!!b;
+    extractInFlight=false;
+    clearTimeout(extractTimer);
+    updateLinkClearBtn();
+    original={name:nameInput.value,lat:latInput.value,lng:lngInput.value,link:linkInput.value};
+    updateSaveEnabled();
+  }
+  fillFromBranch();
+
+  function discard(){
+    if(isNew){row.remove();return}
+    fillFromBranch();
+  }
+  function onOpen(){
+    if(b)ensureMap(b.lat,b.lng);
+  }
+
+  function scheduleExtract(){
+    clearTimeout(extractTimer);
+    latInput.value="";lngInput.value="";
+    mapBox.classList.remove("hasMap");
+    coordsValid=false;
+    extractProgress.classList.remove("show");
+    updateLinkClearBtn();
+    const link=linkInput.value.trim();
+    if(!link){feedback.textContent="";extractInFlight=false;updateSaveEnabled();return}
+    feedback.textContent="";
+    updateSaveEnabled();
+    extractTimer=setTimeout(()=>runExtract(link),600);
+  }
+  async function runExtract(link){
+    extractInFlight=true;
+    feedback.textContent="⏳ جارٍ تحديد الموقع من الرابط...";
+    extractProgress.classList.add("show");
+    updateSaveEnabled();
+    try{
+      const r=await api("adminExtractCoords",{url:link});
+      if(linkInput.value.trim()!==link)return;
+      if(!r.success){
+        feedback.textContent="❌ "+(r.error||"تعذر العثور على إحداثيات في هذا الرابط. تأكد من أنه رابط موقع من خرائط جوجل (زر «مشاركة» ثم «نسخ الرابط»)، وأنه رابط كامل وليس نصاً مختصراً، ثم الصقه هنا مجدداً.");
+        coordsValid=false;
+        return;
+      }
+      latInput.value=r.lat;lngInput.value=r.lng;
+      ensureMap(r.lat,r.lng);
+      feedback.textContent="✅ تم تحديد الموقع بنجاح.";
+      coordsValid=true;
+    }catch(e){
+      if(linkInput.value.trim()!==link)return;
+      feedback.textContent="❌ تعذر الاتصال بالخادم أثناء تحديد الموقع. تحقق من اتصال الإنترنت، ثم الصق الرابط مرة أخرى للمحاولة من جديد.";
+      coordsValid=false;
+    }finally{
+      extractProgress.classList.remove("show");
+      if(linkInput.value.trim()===link){
+        extractInFlight=false;
+        updateSaveEnabled();
+      }
+    }
+  }
+  async function save(){
+    const name=nameInput.value.trim();
+    const lat=latInput.value.trim();
+    const lng=lngInput.value.trim();
+    if(!name||!lat||!lng)return;
+    if(!AdminS.lock.branches.editable)return;
+    saveBtn.disabled=true;const prevText=saveBtn.textContent;saveBtn.textContent="جارٍ الحفظ...";
+    try{
+      const r=await api("adminBranchesSave",{branchId:b?b.id:"",name:name,lat:lat,lng:lng,radiusMeters:radiusMeters});
+      if(!r.success){alert(r.error||"تعذر حفظ الفرع.");return}
+      openBranchDetails=null;openBranchIsDirty=null;openBranchDiscard=null;
+      await loadAdminBranches();
+    }catch(e){
+      alert("تعذر الاتصال بالخادم أثناء حفظ الفرع.");
+    }finally{
+      saveBtn.textContent=prevText;
+      updateSaveEnabled();
+    }
+  }
+
+  nameInput.addEventListener("input",updateSaveEnabled);
+  linkInput.addEventListener("input",scheduleExtract);
+  linkClearBtn.onclick=()=>{
+    linkInput.value="";
+    linkInput.focus();
+    scheduleExtract();
+  };
+  saveBtn.onclick=save;
+  cancelBtn.onclick=async()=>{
+    if(isDirty()){
+      if(!await confirmUnsaved("لديك تغييرات غير محفوظة في هذا الفرع."))return;
+    }
+    discard();
+    if(!isNew)details.classList.add("hidden");
+    openBranchDetails=null;openBranchIsDirty=null;openBranchDiscard=null;
+  };
+
+  const rowCtx={row,details,isDirty,discard,onOpen};
+  summary.onclick=()=>requestOpenBranchRow(rowCtx);
+  editBtn.onclick=(e)=>{e.stopPropagation();requestOpenBranchRow(rowCtx)};
+  if(deleteBtn)deleteBtn.onclick=(e)=>{e.stopPropagation();deleteAdminBranch(b,rowCtx)};
+
+  return rowCtx;
+}
+
+async function startNewBranchRow(){
+  if(openBranchDetails){
+    if(openBranchIsDirty&&openBranchIsDirty()){
+      if(!await confirmUnsaved("لديك تغييرات غير محفوظة في الفرع الحالي."))return;
+    }
+    closeOpenBranchRow();
+  }
+  const list=document.getElementById("adminBranchList");
+  if(!AdminS.branchList.length)list.innerHTML="";
+  const rowCtx=buildBranchRow(null,true);
+  list.insertBefore(rowCtx.row,list.firstChild);
+  rowCtx.details.classList.remove("hidden");
+  openBranchDetails=rowCtx.details;
+  openBranchIsDirty=rowCtx.isDirty;
+  openBranchDiscard=rowCtx.discard;
+  rowCtx.onOpen();
+  document.querySelector("#adminBranchesPanel").scrollIntoView({block:"nearest"});
+}
+
+async function deleteAdminBranch(b,rowCtx){
+  if(!AdminS.lock.branches.editable)return;
+  const affected=AdminS.employees.filter(e=>e.branchId===b.id);
+  let ok;
+  if(affected.length){
+    const namesInline=affected.map(e=>e.name).join(", ");
+    ok=await confirmDanger(
+      "تحذير خطير - يتطلب تدخلاً فورياً من المشرفين",
+      'حذف الفرع "'+b.name+'" سيعطّل فوراً '+affected.length+' موظف/موظفين مرتبطين به حالياً ('+namesInline+'). لن يتم نقلهم إلى وضع "متجول" - بل لن يتمكنوا من تسجيل حضور أو انصراف على الإطلاق حتى تتم مراجعتهم يدوياً وتعيين فرع جديد لهم. سيصل تنبيه عاجل لجميع المشرفين، لكن يجب معالجة الأمر فور الحذف.',
+      "نعم، أعلم النتيجة واحذف الفرع"
+    );
+  }else{
+    ok=await confirmDanger(
+      "تأكيد حذف الفرع",
+      'هل أنت متأكد من حذف فرع "'+b.name+'"؟ لا يمكن التراجع عن هذا الإجراء.',
+      "حذف الفرع"
+    );
+  }
+  if(!ok)return;
+  try{
+    const r=await api("adminBranchesDelete",{branchId:b.id});
+    if(!r.success){alert(r.error||"تعذر حذف الفرع.");return}
+    if(rowCtx&&openBranchDetails===rowCtx.details){openBranchDetails=null;openBranchIsDirty=null;openBranchDiscard=null}
+    await loadAdminBranches();
+    if(!Object.values(AdminS.dirty).some(Boolean))loadAdminEmployees();
+  }catch(e){
+    alert("تعذر الاتصال بالخادم أثناء حذف الفرع.");
+  }
+}
+
+document.getElementById("adminManageFab").onclick=openAdminPanel;
+document.getElementById("adminCloseBtn").onclick=closeAdminPanel;
+document.getElementById("adminOverlay").addEventListener("click",function(e){if(e.target===this)closeAdminPanel()});
+document.getElementById("adminEmpTabBtn").onclick=()=>switchAdminTab("employees");
+document.getElementById("adminBranchTabBtn").onclick=()=>switchAdminTab("branches");
+document.getElementById("adminEmpSaveBtn").onclick=saveAdminEmployees;
+document.getElementById("branchAddBtn").onclick=startNewBranchRow;
+window.addEventListener("beforeunload",function(e){
+  if(document.getElementById("adminOverlay").classList.contains("hidden"))return;
+  if(Object.values(AdminS.dirty).some(Boolean)||branchFormDirty()){
+    e.preventDefault();e.returnValue="";
+  }
+});
+
+function renderHelpList(){
+  const list=document.getElementById("helpList");
+  list.innerHTML="";
+  (HELP_CONTENT[helpTab]||[]).forEach((item,i)=>{
+    const d=document.createElement("details");
+    d.className="faqItem";
+    if(i===0)d.open=true;
+    const s=document.createElement("summary");
+    s.textContent=item.q;
+    const a=document.createElement("div");
+    a.className="faqAnswer";
+    a.textContent=item.a;
+    d.appendChild(s);d.appendChild(a);
+    list.appendChild(d);
+  });
+}
+function setHelpTab(tab){
+  helpTab=tab;
+  document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));
+  renderHelpList();
+}
+function openHelp(){
+  document.getElementById("leaderTab").classList.toggle("hidden",!S.isLeader);
+  if(!S.isLeader)helpTab="employee";
+  setHelpTab(helpTab);
+  document.querySelector(".app").scrollTop=0;
+  document.getElementById("helpOverlay").classList.remove("hidden");
+}
+function closeHelp(){document.getElementById("helpOverlay").classList.add("hidden")}
+document.getElementById("helpFab").onclick=openHelp;
+document.getElementById("helpCloseBtn").onclick=closeHelp;
+document.getElementById("helpOverlay").addEventListener("click",function(e){if(e.target===this)closeHelp()});
+document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>setHelpTab(b.dataset.tab));
+</script></body></html>
