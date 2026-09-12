@@ -11,7 +11,7 @@ window.addEventListener('unhandledrejection', function(e) {
 </script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>زيارات المبيعات</title>
+<title>Crepe House</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" crossorigin="anonymous">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js" crossorigin="anonymous"></script>
@@ -231,7 +231,7 @@ input[readonly]{opacity:.75;cursor:default}
 <main class="app">
 <header class="header">
   <div class="headerText">
-    <div id="businessName" class="business-name">زيارات المبيعات</div>
+    <div id="businessName" class="business-name">Crepe House</div>
     <div id="welcome" class="user-name">جاري التحقق...</div>
   </div>
   <img class="header-logo" src="logo.png" alt="" onerror="this.style.display='none'">
@@ -444,19 +444,19 @@ const FRONTEND_CONFIG = {
 };
 
 const tg=window.Telegram&&window.Telegram.WebApp;
-const BUSINESS_NAME = "زيارات المبيعات";
+const BUSINESS_NAME = "Crepe House";
 document.getElementById("businessName").textContent = BUSINESS_NAME;
-const APP_VERSION = "Penguin Sales Tracker v1.1 ";
+const APP_VERSION = "Crepe_House Sales Tracker v1.1 ";
 document.getElementById("footerVersion").textContent = " · " + APP_VERSION;
 
-const API_URL="https://script.google.com/macros/s/AKfycbzS1rCL5jtyr5uZd_KRY0ScdXZ4cUUmOUsuyWEpWSL1X13048cjnSQpd5lOKpuN2w/exec";
+const API_URL="REPLACE_WITH_WEB_APP_EXEC_URL_AFTER_DEPLOY";
 const DEFAULT_SUPERVISORS=[];
 const ARABIC_MONTHS=["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
 const ERR={NOT_MEMBER:"عذراً، أنت غير موجود في المجموعة الأساسية ولا يمكنك استخدام النظام.",NOT_REGISTERED:"حسابك غير مسجل في النظام.",INACTIVE:"حسابك موجود في النظام ولكنه غير مفعل حالياً.",NO_USERNAME:"يجب أن يكون لديك اسم مستخدم في تيليجرام أولاً.",SERVICE_DOWN:"الخدمة متوقفة مؤقتاً، حاول مرة أخرى لاحقاً.",BACKEND_CONNECTION_FAILED:"تعذر الاتصال بخدمة النظام.",INVALID_ACTION:"العملية المطلوبة غير صحيحة.",INVALID_REQUEST:"الطلب غير صحيح.",INVALID_TELEGRAM_DATA:"تعذر التحقق من حساب تيليجرام.",SERVER_ERROR:"حدث خطأ في النظام. حاول مرة أخرى."};
 
 const UI_TEXT={
   freeRoam:{
-    businessName:"زيارات المبيعات",
+    businessName:"Crepe House",
     homeIcon:"🏬",
     homeTitle:"جاهز لتسجيل زيارة",
     homeMsg:"سجل بداية زيارتك لدى العميل لمتابعة وتسجيل الوقت والموقع تلقائياً.",
