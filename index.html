@@ -13,8 +13,8 @@ window.addEventListener('unhandledrejection', function(e) {
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Crepe House</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" crossorigin="anonymous">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js" crossorigin="anonymous"></script>
+<link rel="preconnect" href="https://script.google.com">
+<link rel="preconnect" href="https://script.googleusercontent.com">
 <style>
 :root{--bg:var(--tg-theme-bg-color,#f5f5f5);--surface:var(--tg-theme-secondary-bg-color,#fff);--text:var(--tg-theme-text-color,#111);--muted:color-mix(in srgb,var(--tg-theme-hint-color,#707a86) 55%,var(--text) 70%);--button:var(--tg-theme-button-color,#2481cc);--buttonText:var(--tg-theme-button-text-color,#fff);--danger:#d9534f;--success:#239b56;--warning:#b7791f;--border:rgba(127,127,127,.16)}
 *{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text)}body{height:100vh;height:100dvh;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
@@ -264,6 +264,7 @@ input[readonly]{opacity:.75;cursor:default}
   <div id="confirmIcon" class="icon">📍</div>
   <h2 id="confirmTitle"></h2>
   <p id="confirmMsg" class="message"></p>
+  <p id="confirmBranchHint" class="message hidden"></p>
   <div class="card">
     <div class="row">
       <div class="rowText"><div class="rowLabel">الوقت الحالي</div><div id="confirmTime" class="rowValue">--:--</div></div>
@@ -423,6 +424,8 @@ const FRONTEND_CONFIG = {
   MSG_LOCATION_NOT_SUPPORTED: "الجهاز لا يدعم تحديد الموقع.",
   MSG_LOCATION_FOUND: "تم تحديد الموقع",
   MSG_LOCATION_FAILED: "تعذر تحديد الموقع، سيُعاد تحديده عند التأكيد.",
+  MSG_BRANCH_IN_RANGE: (name, d) => "📍 أنت داخل نطاق " + name + " (على بعد " + d + " م)",
+  MSG_BRANCH_OUT_RANGE: (name, d, r) => "⚠️ أنت على بعد " + d + " م من " + name + " (النطاق المسموح " + r + " م)",
   
   // Unassigned Branch Screen
   UNASSIGNED_TITLE: "بانتظار تعيين الفرع",
@@ -537,9 +540,34 @@ function formatDate(d){return d.getDate()+" "+ARABIC_MONTHS[d.getMonth()]+" "+d.
 function startClock(){stopClock();const tick=()=>{const el=document.getElementById("confirmTime");if(el)el.textContent=formatTime(new Date())};tick();S.clockTimer=setInterval(tick,1000)}
 function stopClock(){if(S.clockTimer){clearInterval(S.clockTimer);S.clockTimer=null}}
 
+// Leaflet is loaded on demand (prefetched shortly after home renders)
+// so it never blocks app start.
+let _leafletP=null;
+function leafletReady(){
+  if(typeof L!=="undefined")return Promise.resolve();
+  if(_leafletP)return _leafletP;
+  _leafletP=new Promise((resolve,reject)=>{
+    const css=document.createElement("link");
+    css.rel="stylesheet";css.crossOrigin="anonymous";
+    css.href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css";
+    document.head.appendChild(css);
+    const sc=document.createElement("script");
+    sc.crossOrigin="anonymous";
+    sc.src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js";
+    sc.onload=()=>resolve();
+    sc.onerror=()=>{_leafletP=null;reject(new Error("LEAFLET_LOAD_FAILED"))};
+    document.head.appendChild(sc);
+  });
+  return _leafletP;
+}
 let confirmMap=null,confirmMarker=null,geocodeAbort=null;
 function ensureConfirmMap(lat,lng){
-  if(typeof L==="undefined")return;
+  if(typeof L==="undefined"){
+    leafletReady().then(()=>ensureConfirmMap(lat,lng)).catch(()=>{
+      const sk=document.getElementById("confirmMapSkeleton");if(sk)sk.textContent="⚠️ تعذر عرض الخريطة";
+    });
+    return;
+  }
   if(!confirmMap){
     confirmMap=L.map("confirmMapEl",{zoomControl:true,dragging:true,scrollWheelZoom:false,doubleClickZoom:true,tap:true}).setView([lat,lng],16);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"}).addTo(confirmMap);
@@ -574,6 +602,34 @@ async function reverseGeocode(lat,lng){
   }catch(e){return null}
 }
 
+// ---- cached branch (per user, display/hint only - server decides) ----
+function branchCacheKey(){
+  const u=tg&&tg.initDataUnsafe&&tg.initDataUnsafe.user;
+  return u&&u.id?"pst:branch:"+u.id+":"+String(API_URL).slice(-14):null;
+}
+function loadBranchCache(){
+  try{const k=branchCacheKey();if(!k)return null;const v=JSON.parse(localStorage.getItem(k)||"null");return v&&v.rev&&v.branch?v:null}catch(e){return null}
+}
+function saveBranchCache(rev,branch){
+  try{const k=branchCacheKey();if(k)localStorage.setItem(k,JSON.stringify({rev:rev,branch:branch}))}catch(e){}
+}
+function clearBranchCache(){
+  try{const k=branchCacheKey();if(k)localStorage.removeItem(k)}catch(e){}
+}
+function branchDistanceM(lat1,lng1,lat2,lng2){
+  const R=6371000,rad=Math.PI/180,dLat=(lat2-lat1)*rad,dLng=(lng2-lng1)*rad;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*rad)*Math.cos(lat2*rad)*Math.sin(dLng/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+function showBranchHint(){
+  const el=document.getElementById("confirmBranchHint");
+  if(!el)return;
+  if(S.locationMode!=="geofence"||!S.branch||!S.coords){el.classList.add("hidden");return}
+  const b=S.branch,d=Math.round(branchDistanceM(S.coords.lat,S.coords.lng,b.lat,b.lng));
+  el.textContent=d<=b.radiusMeters?FRONTEND_CONFIG.MSG_BRANCH_IN_RANGE(b.name,d):FRONTEND_CONFIG.MSG_BRANCH_OUT_RANGE(b.name,d,b.radiusMeters);
+  el.classList.remove("hidden");
+}
+
 async function loadConfirmLocationPreview(action){
   const btn = document.getElementById("confirmBtn");
   const prog = document.getElementById("confirmProgress");
@@ -590,6 +646,7 @@ async function loadConfirmLocationPreview(action){
     S.coords={lat:p.coords.latitude,lng:p.coords.longitude,accuracy:p.coords.accuracy};
     S.coordsAt=Date.now();
     ensureConfirmMap(S.coords.lat,S.coords.lng);
+    showBranchHint();
     document.getElementById("confirmAddress").textContent=FRONTEND_CONFIG.MSG_LOCATION_FOUND;
     
     // Unlock button once location is fetched successfully
@@ -678,6 +735,7 @@ function renderHome(){
   checkout.onclick=()=>confirmAction("checkout");
 
   document.getElementById("footerStatus").textContent=FRONTEND_CONFIG.STATUS_READY;
+  if(!S._lfp){S._lfp=1;setTimeout(()=>leafletReady().catch(()=>{}),1500)}
 }
 function renderError(msg){
   const previous=document.getElementById("temporaryRetry");
@@ -713,6 +771,7 @@ function openConfirm(action){
   btn.onclick=postAction;
 
   document.getElementById("confirmAddress").textContent="جارٍ تحديد الموقع...";
+  document.getElementById("confirmBranchHint").classList.add("hidden");
   document.getElementById("confirmMapBox").classList.remove("hasMap");
   document.getElementById("confirmMapSkeleton").textContent="📍 جارٍ تحميل الخريطة...";
 
@@ -809,12 +868,89 @@ function showRegistration(){stopClock();screen("registration");document.getEleme
 function showUsername(){stopClock();screen("username");document.getElementById("footerStatus").textContent=FRONTEND_CONFIG.STATUS_USERNAME_REQUIRED}
 function showInactive(){stopClock();screen("inactive");document.getElementById("footerStatus").textContent=FRONTEND_CONFIG.STATUS_INACTIVE}
 function showBotNotStarted(url){stopClock();screen("botNotStarted");document.getElementById("footerStatus").textContent=FRONTEND_CONFIG.STATUS_BOT_REQUIRED;if(url){document.getElementById("startBotBtn").onclick=()=>{if(tg)tg.openTelegramLink(url)};}}
-async function doRefresh(){home("⏳","جاري الاتصال",FRONTEND_CONFIG.MSG_CONNECTING);try{const ping=await api("ping");if(!ping||!ping.success||ping.service!=="online")throw Error("BACKEND_CONNECTION_FAILED");document.getElementById("welcome").textContent="متصل بالنظام ✓";home("🔄","جاري التحقق",FRONTEND_CONFIG.MSG_CONNECTED);const r=await api("status");if(!r.success){renderError(ERR[r.errorCode]||r.error||ERR.SERVER_ERROR);return}S.name=r.name||"الموظف";S.isLeader=!!r.isLeader;S.geofenceModuleAvailable=!!r.geofenceModuleAvailable;S.locationMode=r.locationMode==="geofence"?"geofence":"freeRoam";S.hasBranch=r.hasBranch!==false;document.getElementById("businessName").textContent=V().businessName;document.getElementById("adminManageFab").classList.toggle("hidden",!S.isLeader);document.getElementById("welcome").textContent="أهلاً، "+S.name;switch(r.state){case"NEW":showRegistration();break;case"NEW_NO_USERNAME":case"EXISTING_NO_USERNAME":showUsername();break;case"INACTIVE":showInactive();break;case"ACTIVE":renderHome();if(S.justRegistered){S.justRegistered=false;showSuccessOverlay("تم تسجيل حسابك بنجاح",V().registeredMsg)}break;default:renderError("تعذر معرفة حالة حسابك.")}}catch(e){console.error("Backend connection/status error:",e);renderError("تعذر الاتصال بالنظام. تحقق من اتصال الإنترنت وحاول مرة أخرى.")}}
+// ---- cached status snapshot (ACTIVE users only; server stays the authority) ----
+const STATUS_CACHE_TTL_MS=7*24*60*60*1000;
+function statusCacheKey(){
+  const u=tg&&tg.initDataUnsafe&&tg.initDataUnsafe.user;
+  return u&&u.id?"pst:status:"+u.id+":"+String(API_URL).slice(-14):null;
+}
+function loadStatusCache(){
+  try{
+    const k=statusCacheKey();if(!k)return null;
+    const v=JSON.parse(localStorage.getItem(k)||"null");
+    if(!v||!v.sn||!v.ts||Date.now()-v.ts>STATUS_CACHE_TTL_MS)return null;
+    return v.sn;
+  }catch(e){return null}
+}
+function saveStatusCache(sn){try{const k=statusCacheKey();if(k)localStorage.setItem(k,JSON.stringify({sn:sn,ts:Date.now()}))}catch(e){}}
+function clearStatusCache(){try{const k=statusCacheKey();if(k)localStorage.removeItem(k)}catch(e){}}
+function currentSnapshot(){return{name:S.name,isLeader:S.isLeader,geofenceModuleAvailable:S.geofenceModuleAvailable,locationMode:S.locationMode,hasBranch:S.hasBranch}}
+function applySnapshot(sn){
+  S.name=sn.name||"الموظف";
+  S.isLeader=!!sn.isLeader;
+  S.geofenceModuleAvailable=!!sn.geofenceModuleAvailable;
+  S.locationMode=sn.locationMode==="geofence"?"geofence":"freeRoam";
+  S.hasBranch=sn.hasBranch!==false;
+  document.getElementById("businessName").textContent=V().businessName;
+  document.getElementById("adminManageFab").classList.toggle("hidden",!S.isLeader);
+  document.getElementById("welcome").textContent="أهلاً، "+S.name;
+}
+function onHomeScreen(){return !document.getElementById("home").classList.contains("hidden")}
+
+// background=true: the UI was already rendered from the cached snapshot,
+// so verify quietly - no loading screen, no disabled buttons, no error
+// screen on a network failure. A non-ACTIVE result still switches screens.
+async function doRefresh(background){
+  if(!background)home("⏳","جاري الاتصال",FRONTEND_CONFIG.MSG_CONNECTING);
+  try{
+    const cachedBranch=loadBranchCache();
+    const r=await api("status",cachedBranch?{branchRev:cachedBranch.rev}:{});
+    if(!r.success){clearStatusCache();renderError(ERR[r.errorCode]||r.error||ERR.SERVER_ERROR);return}
+
+    const before=JSON.stringify(currentSnapshot());
+    const sn={name:r.name||"الموظف",isLeader:!!r.isLeader,geofenceModuleAvailable:!!r.geofenceModuleAvailable,locationMode:r.locationMode==="geofence"?"geofence":"freeRoam",hasBranch:r.hasBranch!==false};
+    applySnapshot(sn);
+
+    S.branch=null;
+    if(S.locationMode==="geofence"&&S.hasBranch&&r.branchRev){
+      if(r.branch){S.branch=r.branch;saveBranchCache(r.branchRev,r.branch)}
+      else if(cachedBranch&&cachedBranch.rev===r.branchRev){S.branch=cachedBranch.branch}
+    }else{clearBranchCache()}
+
+    switch(r.state){
+      case"NEW":clearStatusCache();showRegistration();break;
+      case"NEW_NO_USERNAME":case"EXISTING_NO_USERNAME":clearStatusCache();showUsername();break;
+      case"INACTIVE":clearStatusCache();showInactive();break;
+      case"ACTIVE":
+        saveStatusCache(sn);
+        if(!background){
+          renderHome();
+          if(S.justRegistered){S.justRegistered=false;showSuccessOverlay("تم تسجيل حسابك بنجاح",V().registeredMsg)}
+        }else if(onHomeScreen()&&before!==JSON.stringify(currentSnapshot())){
+          renderHome();
+        }
+        break;
+      default:renderError("تعذر معرفة حالة حسابك.")
+    }
+  }catch(e){
+    console.error("Backend connection/status error:",e);
+    if(!background)renderError("تعذر الاتصال بالنظام. تحقق من اتصال الإنترنت وحاول مرة أخرى.");
+  }
+}
 async function refresh(){if(!initTelegram()||S.busy)return;busy(true);try{await doRefresh()}finally{busy(false)}}
 async function register(){if(!initTelegram()||S.busy)return;busy(true);try{const r=await api("register");if(!r.success){if(r.errorCode==="NO_USERNAME")showUsername();else if(r.errorCode==="BOT_NOT_STARTED")showBotNotStarted(r.botUrl);else renderError(ERR[r.errorCode]||r.error||ERR.SERVER_ERROR);return}S.justRegistered=true;await doRefresh()}catch(e){renderError(e.message||ERR.SERVER_ERROR)}finally{busy(false)}}
 document.getElementById("backBtn").onclick=()=>{if(!S.busy){stopClock();renderHome()}};document.getElementById("registerBtn").onclick=register;document.getElementById("retryBtn").onclick=refresh;document.getElementById("reactivateBtn").onclick=register;document.getElementById("retryBotBtn").onclick=register;
 if(new URLSearchParams(location.search).get("previewSuccess")==="1"){renderHome();showSuccessOverlay("تم تسجيل حسابك بنجاح",V().registeredMsg)}
-else if(initTelegram())refresh();
+else if(initTelegram()){
+  const cachedSn=loadStatusCache();
+  if(cachedSn){
+    applySnapshot(cachedSn);
+    const cb=loadBranchCache();
+    S.branch=(S.locationMode==="geofence"&&S.hasBranch&&cb)?cb.branch:null;
+    renderHome();
+    doRefresh(true);
+  }else refresh();
+}
 
 const AdminS={employees:[],original:{},dirty:{},branches:[],branchList:[],loadedBranches:false,
   lock:{employees:{editable:true,ownerName:null},branches:{editable:true,ownerName:null}}
@@ -1320,7 +1456,7 @@ function buildBranchRow(b,isNew){
   const radiusMeters=(b&&b.radiusMeters)||100;
 
   function ensureMap(lat,lng){
-    if(typeof L==="undefined")return;
+    if(typeof L==="undefined"){leafletReady().then(()=>ensureMap(lat,lng)).catch(()=>{});return}
     if(!map){
       map=L.map(mapElId,{zoomControl:true,dragging:true,scrollWheelZoom:false,doubleClickZoom:true,tap:true}).setView([lat,lng],16);
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"}).addTo(map);
